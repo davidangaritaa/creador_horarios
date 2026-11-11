@@ -10,7 +10,7 @@ Arma automáticamente el **mejor horario del semestre** a partir de los grupos d
 Le das un archivo con las materias que quieres ver y los grupos (NRC) de cada una con sus días y horas.
 El programa escoge **un grupo por materia** y te muestra los mejores horarios posibles.
 
-Cada horario recibe un **puntaje** (menos es mejor):
+Cada horario recibe un **puntaje** (menos es mejor; puede ser negativo):
 
 | Situación | Puntos |
 |---|---|
@@ -19,6 +19,11 @@ Cada horario recibe un **puntaje** (menos es mejor):
 | Cada hora de clase **antes de las 8:00** | +2 |
 | Cada hora de clase **después de las 18:00** | +2 |
 | Cada **día** que hay que ir a la universidad | +0,5 |
+| Tener que ir el **viernes** (se premia el viernes libre) | +1,5 |
+| Cada hora de clase el **lunes** 🎉 | −0,5 |
+
+**¿Por qué premiar los lunes?** En Colombia casi todos los festivos caen lunes (Ley Emiliani),
+así que las clases del lunes se pierden seguido y el semestre queda más liviano.
 
 Los pesos se cambian en [`horario/costo.py`](horario/costo.py) (`PESOS`, `HORA_INICIO`, `HORA_FIN`).
 
@@ -42,15 +47,16 @@ Salida en la consola:
 ```
 Materias: 5
 Combinaciones posibles: 162
-Nodos revisados: 65 | tiempo: 1.3 ms
+Nodos revisados: 24 | tiempo: 0.5 ms
 
-Opción 1 (puntaje 2.00)
+Opción 1 (puntaje -1.50)
 Hora   Lun             Mar             Mie             Jue             Vie
-08:00                  Redes (A)                       Redes (A)
-10:00  Bases de Da (A) Calculo III (B) Bases de Da (A) Calculo III (B)
+08:00  Calculo III (A)                 Calculo III (A)
+10:00  Bases de Da (A)                 Bases de Da (A)
 12:00  Ingles IV (C)   Etica (A)       Ingles IV (C)
+14:00  Redes (B)                       Redes (B)
 ...
-Huecos: 0.0 h | Antes de las 8: 0.0 h | Después de las 6 p. m.: 0.0 h | Días: 4 | Puntaje: 2.00
+Huecos: 1.0 h | Antes de las 8: 0.0 h | Después de las 6 p. m.: 0.0 h | Días: 3 | Lunes: 8.0 h | Viernes: libre | Puntaje: -1.50
 ```
 
 ## Formato de los cursos (CSV)
@@ -83,6 +89,8 @@ Usa **backtracking con poda** (ramificación y poda):
 **Detalle de la poda:** la cota usa solo las horas fuera de rango y los días usados, porque esos
 puntos solo pueden **subir** al agregar materias. Los huecos **no** entran en la cota: una materia
 nueva puede caer en medio de un hueco y taparlo, así que los huecos pueden **bajar**.
+El premio del lunes también hace **bajar** el puntaje, así que la cota resta de una vez el máximo
+premio de lunes que todavía podrían dar las materias que faltan.
 
 Sin poda habría que revisar el producto de los grupos de todas las materias
 (por ejemplo, 6 materias con 4 grupos = 4⁶ = 4.096 horarios). La poda revisa muchos menos.

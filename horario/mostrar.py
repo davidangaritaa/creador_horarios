@@ -32,6 +32,7 @@ def imprimir(grupos, titulo="Horario"):
     d = detalle_costo(grupos)
     print(f"Huecos: {d['huecos']:.1f} h | Antes de las 8: {d['temprano']:.1f} h | "
           f"Después de las 6 p. m.: {d['tarde']:.1f} h | Días: {d['dias']} | "
+          f"Lunes: {d['horas_lunes']:.1f} h | Viernes: {'sí' if d['viernes'] else 'libre'} | "
           f"Puntaje: {d['total']:.2f}")
 
 

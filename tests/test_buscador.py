@@ -44,7 +44,50 @@ def test_huecos():
     assert horas_de_hueco(sesiones) == 2.0
 
 
+def test_viernes_y_lunes():
+    from horario.datos import Grupo
+    from horario.costo import detalle_costo, PESOS
+    # Mismo horario, uno el lunes y otro el viernes (2 h de clase cada uno)
+    lunes = Grupo("X", "A", [Sesion("Lun", 8 * 60, 10 * 60)])
+    viernes = Grupo("X", "B", [Sesion("Vie", 8 * 60, 10 * 60)])
+    d_lun, d_vie = detalle_costo([lunes]), detalle_costo([viernes])
+    assert d_lun["horas_lunes"] == 2.0 and d_lun["viernes"] == 0
+    assert d_vie["horas_lunes"] == 0.0 and d_vie["viernes"] == 1
+    diferencia = d_vie["total"] - d_lun["total"]
+    assert abs(diferencia - (PESOS["viernes"] + 2 * PESOS["lunes"])) < 1e-9
+
+
+def test_poda_con_muchos_casos_aleatorios():
+    """La poda (con el premio del lunes) da el mismo óptimo que la fuerza bruta."""
+    import random
+    from horario.datos import Grupo, DIAS
+    from horario.costo import se_cruzan
+    rnd = random.Random(42)
+    for _ in range(200):
+        cursos = {}
+        for m in range(rnd.randint(2, 5)):
+            grupos = []
+            for g in range(rnd.randint(1, 4)):
+                sesiones = []
+                for _ in range(rnd.randint(1, 2)):
+                    ini = rnd.randint(6, 19) * 60
+                    nueva = Sesion(rnd.choice(DIAS[:5]), ini, ini + rnd.choice([60, 120, 180]))
+                    # un grupo real no tiene dos clases que se pisen entre sí
+                    if not any(se_cruzan(nueva, s) for s in sesiones):
+                        sesiones.append(nueva)
+                grupos.append(Grupo(f"M{m}", f"G{g}", sesiones))
+            cursos[f"M{m}"] = grupos
+        mejores, _ = buscar(cursos, top=1)
+        esperado = fuerza_bruta(cursos)
+        if esperado == float("inf"):
+            assert not mejores
+        else:
+            assert abs(mejores[0][0] - esperado) < 1e-9
+
+
 if __name__ == "__main__":
     test_poda_encuentra_el_optimo()
     test_huecos()
+    test_viernes_y_lunes()
+    test_poda_con_muchos_casos_aleatorios()
     print("Todas las pruebas pasaron.")

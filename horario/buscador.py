@@ -9,7 +9,7 @@ Idea:
      los 'top' mejores.
 """
 
-from .costo import costo, cota_inferior, grupo_choca
+from .costo import costo, cota_inferior, grupo_choca, horas_lunes
 
 
 def buscar(cursos: dict, top: int = 3):
@@ -19,6 +19,14 @@ def buscar(cursos: dict, top: int = 3):
     """
     # Materias con menos grupos primero: se equivoca menos y poda antes
     materias = sorted(cursos, key=lambda m: len(cursos[m]))
+
+    # lunes_pendiente[i] = máximo de horas de lunes que pueden aportar las
+    # materias i, i+1, ... (para que la cota tenga en cuenta el premio del lunes)
+    lunes_pendiente = [0.0] * (len(materias) + 1)
+    for i in range(len(materias) - 1, -1, -1):
+        mejor_lunes = max(horas_lunes(g) for g in cursos[materias[i]])
+        lunes_pendiente[i] = lunes_pendiente[i + 1] + mejor_lunes
+
     mejores = []          # lista de (costo, grupos), ordenada de menor a mayor
     nodos = 0
 
@@ -41,7 +49,7 @@ def buscar(cursos: dict, top: int = 3):
             if grupo_choca(grupo, elegidos):        # regla dura: sin cruces
                 continue
             elegidos.append(grupo)
-            if cota_inferior(elegidos) < peor_aceptado():   # poda
+            if cota_inferior(elegidos, lunes_pendiente[i + 1]) < peor_aceptado():   # poda
                 recorrer(i + 1, elegidos)
             elegidos.pop()                          # backtracking: se devuelve
 
