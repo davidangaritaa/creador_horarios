@@ -35,6 +35,8 @@ Abre [`index.html`](index.html) con doble clic, o entra a la versión publicada 
 **https://davidangaritaa.github.io/creador-horarios/**.
 
 - Escribe las materias en la tabla o carga tu CSV (también acepta el CSV con `;` que guarda Excel en español).
+- **¿Tienes capturas del portal?** Copia las instrucciones de la página, pégalas en una IA que acepte imágenes
+  (Claude, ChatGPT, Gemini…) junto con tus capturas y pega la respuesta en la página: las clases se agregan solas a la tabla.
 - Ajusta las preferencias (huecos, viernes libre, premio del lunes, rango de horas).
 - El mejor horario se dibuja al instante; puedes comparar varias opciones e imprimirlo o guardarlo en PDF.
 
@@ -134,7 +136,8 @@ Comprueban que la búsqueda con poda encuentra el mismo óptimo que probar todas
 
 ## Próximas ideas
 
-- [ ] Leer los cursos directamente desde una **captura de pantalla** (OCR).
+- [x] Pasar **capturas de pantalla** a la tabla (con cualquier IA, copiando y pegando).
+- [ ] Hacerlo en un solo clic (subir la foto directo a la página, con un servidor que llame a la API).
 - [ ] Bloquear horas (por ejemplo, "los martes trabajo de 2 a 6").
 - [ ] Preferir o evitar profesores.
 - [x] Interfaz web.

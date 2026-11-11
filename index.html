@@ -93,6 +93,27 @@
   table.cursos select option { background: var(--panel); color: var(--texto); }
   .errores { margin: 10px 0 0; padding: 0; list-style: none; color: var(--error); font-size: .88rem; }
 
+  /* Desde una foto (con una IA) */
+  details.foto { border: 1px dashed var(--acento); border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; }
+  details.foto summary { cursor: pointer; font-weight: 600; }
+  details.foto summary small { font-weight: 400; color: var(--suave); }
+  details.foto ol { margin: 12px 0 0; padding-left: 20px; }
+  details.foto li { margin-bottom: 14px; }
+  details.foto li p { margin: 2px 0 8px; color: var(--suave); font-size: .9rem; }
+  details.foto a { color: var(--acento); }
+  details.foto textarea {
+    width: 100%; min-height: 130px; font: .85rem/1.4 ui-monospace, Consolas, monospace;
+    background: var(--bg); color: var(--texto); border: 1px solid var(--borde); border-radius: 8px; padding: 8px;
+  }
+  details.foto textarea:focus { outline: none; border-color: var(--acento); }
+  details.foto pre {
+    white-space: pre-wrap; background: var(--bg); border: 1px solid var(--borde); border-radius: 8px;
+    padding: 8px 10px; font-size: .8rem; max-height: 180px; overflow: auto; margin: 8px 0 0;
+  }
+  .aviso { font-size: .88rem; margin-top: 8px; }
+  .aviso.ok { color: var(--ok); }
+  .aviso.mal { color: var(--error); }
+
   /* Preferencias */
   .prefs { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
   .prefs label { display: block; font-size: .85rem; color: var(--suave); margin-bottom: 3px; }
@@ -151,6 +172,34 @@
   <section class="panel no-imprimir">
     <h2>1. Materias y grupos</h2>
     <p class="ayuda">Una fila por cada clase. Si un grupo ve clase lunes y miércoles, son dos filas con la misma materia y el mismo grupo.</p>
+
+    <details class="foto" id="foto">
+      <summary>📷 ¿Tienes capturas del portal de la universidad? Pásalas a la tabla con una IA <small>(Claude, ChatGPT, Gemini… gratis, sin escribir nada)</small></summary>
+      <ol>
+        <li>
+          <b>Copia las instrucciones</b>
+          <p>Le dicen a la IA exactamente en qué formato devolver los horarios.</p>
+          <button class="principal" id="btn-copiar-prompt">📋 Copiar instrucciones</button>
+          <span class="aviso ok" id="aviso-copiado"></span>
+          <details><summary style="font-weight:400;font-size:.85rem;margin-top:8px">Ver las instrucciones</summary><pre id="texto-prompt"></pre></details>
+        </li>
+        <li>
+          <b>Pégalas en tu IA favorita junto con tus capturas</b>
+          <p>Abre cualquier IA que acepte imágenes, por ejemplo <a href="https://claude.ai/new" target="_blank" rel="noopener">Claude</a>, <a href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT</a> o <a href="https://gemini.google.com/" target="_blank" rel="noopener">Gemini</a>. Pega las instrucciones, adjunta una o varias capturas de la oferta de grupos y envía.</p>
+        </li>
+        <li>
+          <b>Copia la respuesta de la IA y pégala aquí</b>
+          <p>Puedes pegar la respuesta completa: la página se queda solo con las filas del horario.</p>
+          <textarea id="pegado" placeholder="materia,grupo,dia,inicio,fin,profesor,salon&#10;Calculo III,A,Lun,08:00,10:00,Perez,A-201&#10;…"></textarea>
+          <div class="barra" style="margin:8px 0 0">
+            <button class="principal" id="btn-pegado-agregar">Agregar a mi tabla</button>
+            <button id="btn-pegado-reemplazar">Reemplazar mi tabla</button>
+          </div>
+          <div class="aviso" id="aviso-pegado"></div>
+        </li>
+      </ol>
+    </details>
+
     <div class="barra">
       <button id="btn-agregar">+ Agregar clase</button>
       <label class="boton" for="archivo">📂 Cargar CSV</label>
@@ -411,8 +460,13 @@ function parsearCSV(texto) {
   if (faltan.length) throw new Error("Al CSV le faltan las columnas: " + faltan.join(", "));
 
   const hora = h => {
-    const m = String(h || "").trim().match(/^(\d{1,2}):(\d{2})/);
-    return m ? m[1].padStart(2, "0") + ":" + m[2] : String(h || "").trim();
+    const texto = String(h || "").trim();
+    const m = texto.match(/^(\d{1,2}):(\d{2})\s*([ap])?\.?\s*m?/i);
+    if (!m) return texto;
+    let hh = Number(m[1]);
+    if (m[3] && m[3].toLowerCase() === "p" && hh < 12) hh += 12;   // 2:00 p. m. -> 14:00
+    if (m[3] && m[3].toLowerCase() === "a" && hh === 12) hh = 0;   // 12:00 a. m. -> 00:00
+    return String(hh).padStart(2, "0") + ":" + m[2];
   };
   return filas
     .filter(f => f.some(x => x.trim()))
@@ -425,6 +479,46 @@ function parsearCSV(texto) {
       profesor: col("profesor") >= 0 ? (f[col("profesor")] || "").trim() : "",
       salon: col("salon") >= 0 ? (f[col("salon")] || "").trim() : "",
     }));
+}
+
+/* Instrucciones para que una IA pase capturas del portal a nuestro CSV. */
+const PROMPT_FOTO = `Te voy a pasar una o varias capturas de pantalla con la oferta de grupos (horarios) de mi universidad. Conviértelas en un CSV con exactamente estas columnas y en este orden:
+
+materia,grupo,dia,inicio,fin,profesor,salon
+
+Reglas:
+- Una fila por cada sesión de clase. Si un grupo ve clase lunes y miércoles, son dos filas con la misma materia y el mismo grupo.
+- materia: el nombre de la materia, escrito igual en todas sus filas.
+- grupo: el identificador del grupo o el NRC, tal como aparece.
+- dia: solo Lun, Mar, Mie, Jue, Vie o Sab. Si los días vienen como letras, conviértelos según el contexto de la captura (por ejemplo L=Lun, M=Mar, X o W=Mie, J o R=Jue, V o F=Vie, S=Sab).
+- inicio y fin: hora en formato 24 horas HH:MM (2:00 p. m. = 14:00).
+- profesor y salon: déjalos vacíos si no aparecen.
+- Si un valor tiene comas, escríbelo entre comillas.
+- No inventes datos. Si algo no se lee bien, no pongas esa fila y avísame después del bloque de código.
+
+Responde con el CSV dentro de un solo bloque de código, empezando por la línea de encabezado.`;
+
+/* Saca las filas de la respuesta de la IA (con o sin bloque de código y texto alrededor). */
+function extraerCSVDeRespuesta(texto) {
+  texto = String(texto || "").replace(/^﻿/, "");
+  const bloque = texto.match(/```[^\n]*\n([\s\S]*?)```/);
+  if (bloque) texto = bloque[1];
+  const lineas = texto.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const sinTildes = s => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const iCab = lineas.findIndex(l => /materia/.test(sinTildes(l)) && /grupo/.test(sinTildes(l)));
+  const sep = l => (l.match(/[,;\t]/g) || []).length;
+  let datos;
+  if (iCab >= 0) {
+    datos = [lineas[iCab].replace(/\t/g, ",")].concat(lineas.slice(iCab + 1).filter(l => sep(l) >= 4).map(l => l.replace(/\t/g, ",")));
+  } else {
+    const filas = lineas.filter(l => sep(l) >= 4).map(l => l.replace(/\t/g, ","));
+    if (!filas.length) throw new Error("No encontré filas de horario en lo que pegaste. Copia la respuesta completa de la IA.");
+    const s = filas[0].includes(";") ? ";" : ",";
+    datos = [["materia", "grupo", "dia", "inicio", "fin", "profesor", "salon"].join(s)].concat(filas);
+  }
+  const filas = parsearCSV(datos.join("\n"));
+  if (!filas.length) throw new Error("No encontré filas de horario en lo que pegaste.");
+  return filas;
 }
 
 function generarCSV(filas) {
@@ -716,6 +810,42 @@ $("btn-limpiar").onclick = () => {
   cambio();
 };
 $("btn-imprimir").onclick = () => window.print();
+
+/* --- Desde una foto (con una IA) --- */
+$("texto-prompt").textContent = PROMPT_FOTO;
+$("btn-copiar-prompt").onclick = async () => {
+  let ok = false;
+  try { await navigator.clipboard.writeText(PROMPT_FOTO); ok = true; } catch (e) { /* se intenta a la antigua */ }
+  if (!ok) {
+    const t = el("textarea", { style: { position: "fixed", opacity: 0 } });
+    t.value = PROMPT_FOTO;
+    document.body.append(t);
+    t.select();
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    t.remove();
+  }
+  $("aviso-copiado").textContent = ok ? " ✓ Copiadas. Ahora pégalas en tu IA." : " No se pudo copiar: ábrelas abajo y cópialas a mano.";
+};
+function importarPegado(reemplazar) {
+  const aviso = $("aviso-pegado");
+  try {
+    const nuevas = extraerCSVDeRespuesta($("pegado").value);
+    if (reemplazar && estado.filas.length && !confirm(`Esto reemplaza tus ${estado.filas.length} clases actuales. ¿Continuar?`)) return;
+    estado.filas = reemplazar ? nuevas : estado.filas.concat(nuevas);
+    seleccion = 0;
+    pintarFilas();
+    cambio();
+    const materias = new Set(nuevas.map(f => f.materia)).size;
+    aviso.className = "aviso ok";
+    aviso.textContent = `✓ Se ${reemplazar ? "cargaron" : "agregaron"} ${nuevas.length} clases de ${materias} materia(s). Revisa la tabla por si algo se leyó mal.`;
+    $("pegado").value = "";
+  } catch (err) {
+    aviso.className = "aviso mal";
+    aviso.textContent = "⚠️ " + err.message;
+  }
+}
+$("btn-pegado-agregar").onclick = () => importarPegado(false);
+$("btn-pegado-reemplazar").onclick = () => importarPegado(true);
 
 cargarEstado();
 pintarFilas();
