@@ -139,6 +139,24 @@
   .resaltado b { display: block; font-size: .88rem; font-weight: 800; letter-spacing: -.01em; }
   .vacio-cuaderno { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 16px; }
   .vacio-cuaderno p { font: 600 1.7rem/1.15 var(--mano); color: var(--tinta-suave); margin: 0; max-width: 22ch; }
+  .ocupado {
+    position: absolute; left: 5px; right: 5px; display: grid; place-items: center; overflow: hidden;
+    border: 1.5px dashed var(--tinta-suave); border-radius: 8px;
+    background: repeating-linear-gradient(135deg, transparent 0 6px, var(--rayado) 6px 8px);
+  }
+  .ocupado span { font: 600 1.2rem/1 var(--mano); color: var(--tinta-suave); background: var(--hoja); padding: 1px 6px; border-radius: 5px; text-align: center; }
+
+  /* Pasar al calendario */
+  details.exportar { margin: 22px 0 0; }
+  .exportar .frase { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 14px 0 10px; }
+  .exportar input[type=date] {
+    font: 600 .95rem var(--letra); color: var(--lapicero); background: var(--hoja);
+    border: none; border-bottom: 2px solid var(--hora); padding: 2px;
+  }
+  .exportar input[type=date]:focus { outline: none; border-bottom-color: var(--lapicero); }
+  .exportar label.marca-check { display: flex; gap: 9px; align-items: center; margin: 6px 0; }
+  .exportar input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--lapicero); }
+  table.cursos.bloqueos { min-width: 520px; }
 
   /* Grupos escogidos */
   .escogidos { list-style: none; margin: 18px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 28px; }
@@ -240,6 +258,19 @@
     <div class="opciones no-imprimir" id="opciones" role="group" aria-label="Opciones de horario"></div>
     <div class="cuaderno-scroll"><div class="cuaderno" id="calendario"></div></div>
     <ul class="escogidos" id="detalle"></ul>
+
+    <details class="foto exportar no-imprimir" id="exportar">
+      <summary>Pasar este horario a tu calendario
+        <small>Google Calendar, Outlook o el calendario del celular, con las clases de todo el semestre.</small></summary>
+      <div class="frase">El semestre va del
+        <input type="date" id="sem-inicio" aria-label="Primer día de clases"> al
+        <input type="date" id="sem-fin" aria-label="Último día de clases"></div>
+      <label class="marca-check"><input type="checkbox" id="sem-festivos"> Saltar los festivos de Colombia</label>
+      <label class="marca-check"><input type="checkbox" id="sem-alarma"> Avisarme 15 minutos antes de cada clase</label>
+      <div class="barra" style="margin:12px 0 0"><button class="principal" id="btn-ics">Descargar calendario</button></div>
+      <div class="aviso" id="aviso-ics"></div>
+      <p class="ayuda" style="margin:10px 0 2px;font-size:.92rem">En Google Calendar, entra desde el computador a Configuración, luego a Importar y exportar, y elige el archivo. En el celular, ábrelo desde el correo o la app de archivos.</p>
+    </details>
     <p class="estadistica no-imprimir" id="stats"></p>
 
     <div class="edicion no-imprimir">
@@ -303,6 +334,28 @@
         <ul class="errores" id="errores"></ul>
       </section>
 
+      <section aria-labelledby="t-ocupadas">
+        <h2 id="t-ocupadas">Tus horas ocupadas</h2>
+        <p class="ayuda">Trabajo, deporte o cualquier cosa que no puedas mover. Ningún grupo que se cruce con estas horas entra en el horario, y si quedan entre dos clases no cuentan como hueco.</p>
+        <div class="tabla-scroll" id="tabla-bloqueos">
+          <table class="cursos bloqueos">
+            <thead>
+              <tr>
+                <th style="width:36%">Qué es</th>
+                <th style="width:22%">Día</th>
+                <th style="width:18%">Desde</th>
+                <th style="width:18%">Hasta</th>
+                <th style="width:44px"><span style="position:absolute;left:-9999px">Acciones</span></th>
+              </tr>
+            </thead>
+            <tbody id="filas-bloqueos"></tbody>
+          </table>
+        </div>
+        <p class="ayuda" id="sin-bloqueos" style="margin:0">No tienes horas ocupadas.</p>
+        <div class="barra" style="margin:12px 0 0"><button id="btn-bloquear">Agregar hora ocupada</button></div>
+        <ul class="errores" id="errores-bloqueos"></ul>
+      </section>
+
       <aside aria-labelledby="t-reglas">
         <h2 id="t-reglas">Cómo se califica</h2>
         <p class="ayuda">Gana el horario con menos puntos. Pon 0 para ignorar una regla.</p>
@@ -318,6 +371,7 @@
 </div>
 
 <script>
+// ---8<--- inicio de la lógica (tests/test_web.py copia desde aquí hasta "fin de la lógica")
 /* =====================================================================
    LÓGICA (equivalente a horario/costo.py y horario/buscador.py)
    ===================================================================== */
@@ -350,6 +404,27 @@ function grupoChoca(grupo, elegidos) {
   return false;
 }
 
+/* Huecos de un día = (de la primera a la última clase) - (tiempo ocupado).
+   Las horas bloqueadas entre clases (trabajo, deporte...) no son hueco. */
+function horasDeHueco(ses, bloqueosDelDia) {
+  const primera = Math.min(...ses.map(s => s.inicio));
+  const ultima = Math.max(...ses.map(s => s.fin));
+  const tramos = ses.map(s => [s.inicio, s.fin])
+    .concat(bloqueosDelDia.map(b => [Math.max(b.inicio, primera), Math.min(b.fin, ultima)]))
+    .filter(t => t[0] < t[1])
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  let ocupado = 0, hasta = primera;
+  for (let [ini, fin] of tramos) {
+    ini = Math.max(ini, hasta);
+    if (fin > ini) { ocupado += fin - ini; hasta = fin; }
+  }
+  return (ultima - primera - ocupado) / 60;
+}
+
+function chocaConBloqueos(grupo, bloqueos) {
+  return grupo.sesiones.some(s => bloqueos.some(b => seCruzan(s, b)));
+}
+
 function detalleCosto(grupos, cfg) {
   const porDia = {};
   for (const d of DIAS) porDia[d] = [];
@@ -362,14 +437,12 @@ function detalleCosto(grupos, cfg) {
     }
   }
   let huecos = 0, dias = 0;
+  const bloqueos = cfg.bloqueos || [];
   for (const d of DIAS) {
     const ses = porDia[d];
     if (!ses.length) continue;
     dias++;
-    const primera = Math.min(...ses.map(s => s.inicio));
-    const ultima = Math.max(...ses.map(s => s.fin));
-    const enClase = ses.reduce((a, s) => a + s.fin - s.inicio, 0);
-    huecos += (ultima - primera - enClase) / 60;
+    huecos += horasDeHueco(ses, bloqueos.filter(b => b.dia === d));
   }
   const viernes = porDia.Vie.length ? 1 : 0;
   const horasLunes = porDia.Lun.reduce((a, s) => a + s.fin - s.inicio, 0) / 60;
@@ -393,7 +466,16 @@ function cotaInferior(grupos, lunesPendiente, cfg) {
 
 const LIMITE_NODOS = 3000000;
 
-function buscar(cursos, cfg) {
+function buscar(cursosTodos, cfg) {
+  // Se quitan los grupos que caen en horas ocupadas
+  const bloqueos = cfg.bloqueos || [];
+  const cursos = {}, sinGrupo = [];
+  for (const [m, gs] of Object.entries(cursosTodos)) {
+    cursos[m] = gs.filter(g => !chocaConBloqueos(g, bloqueos));
+    if (!cursos[m].length) sinGrupo.push(m);
+  }
+  if (sinGrupo.length) return { mejores: [], nodos: 0, cortado: false, sinGrupo };
+
   const materias = Object.keys(cursos).sort((a, b) => cursos[a].length - cursos[b].length);
   const pendiente = new Array(materias.length + 1).fill(0);
   for (let i = materias.length - 1; i >= 0; i--)
@@ -423,7 +505,7 @@ function buscar(cursos, cfg) {
     }
   }
   recorrer(0, []);
-  return { mejores, nodos: Math.min(nodos, LIMITE_NODOS), cortado };
+  return { mejores, nodos: Math.min(nodos, LIMITE_NODOS), cortado, sinGrupo };
 }
 
 /* Convierte las filas de la tabla en {materia: [grupo, ...]} y valida. */
@@ -592,6 +674,97 @@ function generarCSV(filas) {
 
 
 /* =====================================================================
+   FESTIVOS DE COLOMBIA Y CALENDARIO (.ics)
+   ===================================================================== */
+
+/* Domingo de Pascua (algoritmo anónimo gregoriano). Devuelve una fecha UTC. */
+function domingoDePascua(anio) {
+  const a = anio % 19, b = Math.floor(anio / 100), c = anio % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(Date.UTC(anio, mes - 1, dia));
+}
+const masDias = (fecha, n) => new Date(fecha.getTime() + n * 86400000);
+const isoFecha = f => f.toISOString().slice(0, 10);
+const desdeIso = s => { const [a, m, d] = s.split("-").map(Number); return new Date(Date.UTC(a, m - 1, d)); };
+
+/* Festivos de Colombia de un año (Ley 51 de 1983, "Ley Emiliani"): algunos se
+   corren al lunes siguiente si no caen lunes. Devuelve fechas "AAAA-MM-DD". */
+function festivosColombia(anio) {
+  const alLunes = f => masDias(f, (8 - f.getUTCDay()) % 7);
+  const fijo = (m, d) => new Date(Date.UTC(anio, m - 1, d));
+  const pascua = domingoDePascua(anio);
+  const fechas = [
+    fijo(1, 1), fijo(5, 1), fijo(7, 20), fijo(8, 7), fijo(12, 8), fijo(12, 25),   // no se mueven
+    alLunes(fijo(1, 6)), alLunes(fijo(3, 19)), alLunes(fijo(6, 29)), alLunes(fijo(8, 15)),
+    alLunes(fijo(10, 12)), alLunes(fijo(11, 1)), alLunes(fijo(11, 11)),           // Ley Emiliani
+    masDias(pascua, -3), masDias(pascua, -2),                                     // Jueves y Viernes Santo
+    alLunes(masDias(pascua, 39)), alLunes(masDias(pascua, 60)), alLunes(masDias(pascua, 68)), // Ascensión, Corpus, Sagrado Corazón
+  ];
+  return [...new Set(fechas.map(isoFecha))].sort();
+}
+
+/* Arma un archivo .ics con una clase semanal por cada sesión del horario.
+   opciones: { inicio, fin ("AAAA-MM-DD"), saltarFestivos, alarma, ahora (Date) } */
+function generarICS(grupos, opciones) {
+  const DOW = { Lun: 1, Mar: 2, Mie: 3, Jue: 4, Vie: 5, Sab: 6 };
+  const inicio = desdeIso(opciones.inicio), fin = desdeIso(opciones.fin);
+  const ahora = opciones.ahora || new Date();
+  const compacta = f => isoFecha(f).replace(/-/g, "");
+  const hora = min => aHora(min).replace(":", "") + "00";
+  const escapar = t => String(t).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+  const doblar = linea => {           // líneas cortas, como pide el formato (RFC 5545)
+    const partes = [];
+    for (let i = 0; i < linea.length; i += 60) partes.push(linea.slice(i, i + 60));
+    return partes.join("\r\n ");
+  };
+  const festivos = new Set();
+  if (opciones.saltarFestivos) {
+    for (let a = inicio.getUTCFullYear(); a <= fin.getUTCFullYear(); a++) festivosColombia(a).forEach(f => festivos.add(f));
+  }
+  const sello = ahora.toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+  const lineas = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Creador de horarios//ES", "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH", "X-WR-CALNAME:Mi horario", "X-WR-TIMEZONE:America/Bogota",
+    "BEGIN:VTIMEZONE", "TZID:America/Bogota", "BEGIN:STANDARD", "DTSTART:19700101T000000",
+    "TZOFFSETFROM:-0500", "TZOFFSETTO:-0500", "TZNAME:-05", "END:STANDARD", "END:VTIMEZONE",
+  ];
+  let clases = 0, omitidos = 0, n = 0;
+  for (const g of grupos) {
+    for (const s of g.sesiones) {
+      const primera = masDias(inicio, (DOW[s.dia] - inicio.getUTCDay() + 7) % 7);
+      if (primera > fin) continue;
+      clases++;
+      const exdates = [];
+      for (let f = primera; f <= fin; f = masDias(f, 7))
+        if (festivos.has(isoFecha(f))) exdates.push(`${compacta(f)}T${hora(s.inicio)}`);
+      omitidos += exdates.length;
+      const salon = s.salon || g.salon || "";
+      lineas.push(
+        "BEGIN:VEVENT",
+        `UID:${sello}-${++n}@creador-horarios`,
+        `DTSTAMP:${sello}`,
+        `DTSTART;TZID=America/Bogota:${compacta(primera)}T${hora(s.inicio)}`,
+        `DTEND;TZID=America/Bogota:${compacta(primera)}T${hora(s.fin)}`,
+        `RRULE:FREQ=WEEKLY;UNTIL=${compacta(masDias(fin, 1))}T045959Z`,   // fin del último día, hora de Colombia
+        ...exdates.map(x => `EXDATE;TZID=America/Bogota:${x}`),
+        doblar(`SUMMARY:${escapar(`${g.materia} (grupo ${g.nombre})`)}`),
+        ...(salon ? [doblar(`LOCATION:${escapar(salon)}`)] : []),
+        ...(g.profesor ? [doblar(`DESCRIPTION:${escapar("Profesor: " + g.profesor)}`)] : []),
+        ...(opciones.alarma ? ["BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:Clase en 15 minutos", "TRIGGER:-PT15M", "END:VALARM"] : []),
+        "END:VEVENT",
+      );
+    }
+  }
+  lineas.push("END:VCALENDAR");
+  return { texto: lineas.join("\r\n") + "\r\n", clases, omitidos };
+}
+// ---8<--- fin de la lógica
+
+/* =====================================================================
    INTERFAZ
    ===================================================================== */
 const CLAVE = "creador-horarios-v1";
@@ -605,6 +778,8 @@ let estado = {
   horaInicio: "08:00",
   horaFin: "18:00",
   top: 5,
+  bloqueos: [],        // horas ocupadas: { nombre, dia, inicio, fin }
+  semestre: null,      // { inicio, fin, festivos, alarma } para el calendario
 };
 let resultado = null, seleccion = 0;
 
@@ -727,7 +902,44 @@ function configuracion() {
     horaInicio: isNaN(aMinutos(estado.horaInicio)) ? 480 : aMinutos(estado.horaInicio),
     horaFin: isNaN(aMinutos(estado.horaFin)) ? 1080 : aMinutos(estado.horaFin),
     top: estado.top,
+    bloqueos: revisarBloqueos().validos,
   };
+}
+
+/* Horas ocupadas: separa las que están bien escritas de las que tienen errores */
+function revisarBloqueos() {
+  const validos = [], errores = [], malos = new Set();
+  estado.bloqueos.forEach((b, i) => {
+    if (!b.inicio && !b.fin) return;                       // fila a medio llenar
+    const dia = normalizarDia(b.dia), inicio = aMinutos(b.inicio), fin = aMinutos(b.fin);
+    const nombre = (b.nombre || "").trim() || `Hora ocupada ${i + 1}`;
+    if (!dia || isNaN(inicio) || isNaN(fin)) { errores.push(`${nombre}: falta el día o alguna hora.`); malos.add(i); return; }
+    if (fin <= inicio) { errores.push(`${nombre}: la hora "hasta" debe ser después de "desde".`); malos.add(i); return; }
+    validos.push({ dia, inicio, fin, nombre: (b.nombre || "").trim() });
+  });
+  return { validos, errores, malos };
+}
+
+function pintarBloqueos() {
+  const tbody = $("filas-bloqueos");
+  tbody.innerHTML = "";
+  estado.bloqueos.forEach((b, idx) => {
+    const campo = (clave, tipo, extra) => el("input", { type: tipo, value: b[clave] || "", ...extra,
+      oninput: e => { b[clave] = e.target.value; cambio(); } });
+    const selDia = el("select", { "aria-label": `Día de la hora ocupada ${idx + 1}`, onchange: e => { b.dia = e.target.value; cambio(); } },
+      ...DIAS.map(d => el("option", { value: d }, NOMBRES_DIA[d])));
+    selDia.value = b.dia || "Lun";
+    tbody.append(el("tr", { "data-idx": idx },
+      el("td", {}, campo("nombre", "text", { placeholder: "Ej.: Trabajo", "aria-label": `Qué es, hora ocupada ${idx + 1}` })),
+      el("td", {}, selDia),
+      el("td", {}, campo("inicio", "time", { step: 300, "aria-label": `Desde, hora ocupada ${idx + 1}` })),
+      el("td", {}, campo("fin", "time", { step: 300, "aria-label": `Hasta, hora ocupada ${idx + 1}` })),
+      el("td", {}, el("button", { class: "quieto", title: "Quitar", "aria-label": `Quitar hora ocupada ${idx + 1}`,
+        onclick: () => { estado.bloqueos.splice(idx, 1); pintarBloqueos(); cambio(); } }, "✕"))));
+  });
+  const hay = estado.bloqueos.length > 0;
+  $("tabla-bloqueos").style.display = hay ? "" : "none";
+  $("sin-bloqueos").style.display = hay ? "none" : "";
 }
 
 function calcular() {
@@ -744,6 +956,13 @@ function calcular() {
     const m = tr.querySelector(".muestra");
     if (m) m.style.background = color(estado.filas[idx] && estado.filas[idx].materia) || "";
   });
+
+  const revision = revisarBloqueos();
+  const listaB = $("errores-bloqueos");
+  listaB.innerHTML = "";
+  revision.errores.forEach(e => listaB.append(el("li", {}, e)));
+  document.querySelectorAll("#filas-bloqueos tr").forEach(tr =>
+    tr.classList.toggle("con-error", revision.malos.has(Number(tr.dataset.idx))));
 
   const cfg = configuracion();
   const materias = Object.keys(cursos);
@@ -767,6 +986,14 @@ function calcular() {
     `Se revisaron ${r.nodos.toLocaleString("es-CO")} de ${combinaciones.toLocaleString("es-CO")} combinaciones posibles en ${fmtNum(ms)} ms.` +
     (r.cortado ? " La búsqueda se cortó por tamaño: quita algunos grupos para asegurar el mejor resultado." : "");
 
+  if (r.sinGrupo && r.sinGrupo.length) {
+    const cuales = enLista(r.sinGrupo);
+    $("stats").textContent = "";
+    pintarVacio(cfg, `Tus horas ocupadas dejan sin grupo a ${cuales}.`,
+      `Todos los grupos de ${cuales} se cruzan con tus horas ocupadas. Mueve o quita alguna de ellas, o agrega otro grupo de esa materia.`,
+      "no cabe con tus horas ocupadas");
+    return;
+  }
   if (!r.mejores.length) {
     pintarVacio(cfg, "Estos grupos siempre se cruzan.",
       "Ninguna combinación queda sin cruces. Revisa si dos materias solo tienen grupos a la misma hora y agrega otro grupo de alguna de ellas.",
@@ -805,6 +1032,7 @@ function pintarVacio(cfg, titulo, texto, notaMano) {
   $("resumen").textContent = texto;
   $("opciones").innerHTML = "";
   $("detalle").innerHTML = "";
+  $("exportar").style.display = "none";
   dibujarCuaderno([], cfg, null, notaMano);
 }
 
@@ -816,6 +1044,7 @@ function pintarResultado() {
   const sesiones = op.grupos.flatMap(g => g.sesiones.map(s => ({ ...s, g })));
 
   escribirTitular(d, sesiones, seleccion);
+  $("exportar").style.display = "";
 
   const opciones = $("opciones");
   opciones.innerHTML = "";
@@ -856,9 +1085,11 @@ function elegirOpcion(i) {
 function dibujarCuaderno(sesiones, cfg, d, notaMano, color) {
   const cal = $("calendario");
   cal.innerHTML = "";
-  const dias = DIAS.filter(dd => dd !== "Sab" || sesiones.some(s => s.dia === "Sab"));
-  const ini = Math.floor(Math.min(cfg.horaInicio, ...sesiones.map(s => s.inicio)) / 60);
-  const fin = Math.ceil(Math.max(cfg.horaFin, ...sesiones.map(s => s.fin)) / 60);
+  const ocupadas = cfg.bloqueos || [];
+  const todo = sesiones.concat(ocupadas);
+  const dias = DIAS.filter(dd => dd !== "Sab" || todo.some(s => s.dia === "Sab"));
+  const ini = Math.floor(Math.min(cfg.horaInicio, ...todo.map(s => s.inicio)) / 60);
+  const fin = Math.ceil(Math.max(cfg.horaFin, ...todo.map(s => s.fin)) / 60);
   const H = 48, alto = (fin - ini) * H;
   const y = min => (min / 60 - ini) * H;
 
@@ -883,6 +1114,13 @@ function dibujarCuaderno(sesiones, cfg, d, notaMano, color) {
       col.append(el("div", { class: "zona", title: "Antes de tu hora mínima", style: { top: 0, height: y(cfg.horaInicio) + "px" } }));
     if (cfg.horaFin < fin * 60)
       col.append(el("div", { class: "zona", title: "Después de tu hora máxima", style: { top: y(cfg.horaFin) + "px", bottom: 0 } }));
+    for (const b of ocupadas.filter(b => b.dia === dd)) {
+      col.append(el("div", {
+        class: "ocupado",
+        title: `${b.nombre || "Hora ocupada"}: ${fmtHora(b.inicio)} a ${fmtHora(b.fin)}`,
+        style: { top: y(b.inicio) + 3 + "px", height: (y(b.fin) - y(b.inicio) - 6) + "px" },
+      }, el("span", {}, b.nombre || "ocupado")));
+    }
     for (const s of sesiones.filter(s => s.dia === dd)) {
       const corto = s.fin - s.inicio < 90;
       col.append(el("div", {
@@ -991,8 +1229,70 @@ function importarPegado(reemplazar) {
 $("btn-pegado-agregar").onclick = () => importarPegado(false);
 $("btn-pegado-reemplazar").onclick = () => importarPegado(true);
 
+/* --- Horas ocupadas --- */
+$("btn-bloquear").onclick = () => {
+  estado.bloqueos.push({ nombre: "", dia: "Mar", inicio: "", fin: "" });
+  pintarBloqueos();
+  cambio();
+  $("filas-bloqueos").lastElementChild.querySelector("input").focus();
+};
+
+/* --- Pasar al calendario (.ics) --- */
+function fechaLocal(f) {
+  return `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, "0")}-${String(f.getDate()).padStart(2, "0")}`;
+}
+function semestrePorDefecto() {
+  // El próximo semestre típico: empieza el primer lunes de febrero o de agosto y dura 16 semanas
+  const hoy = new Date(), a = hoy.getFullYear();
+  const primerLunes = (anio, mes) => { const f = new Date(anio, mes, 1); return new Date(anio, mes, 1 + (8 - f.getDay()) % 7); };
+  const lunes = [primerLunes(a, 1), primerLunes(a, 7), primerLunes(a + 1, 1)].find(f => f >= new Date(a, hoy.getMonth(), hoy.getDate()));
+  const viernes = new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate() + 16 * 7 - 3);
+  return { inicio: fechaLocal(lunes), fin: fechaLocal(viernes), festivos: true, alarma: true };
+}
+function prepararCalendario() {
+  if (!estado.semestre) estado.semestre = semestrePorDefecto();
+  const sem = estado.semestre;
+  $("sem-inicio").value = sem.inicio;
+  $("sem-fin").value = sem.fin;
+  $("sem-festivos").checked = !!sem.festivos;
+  $("sem-alarma").checked = !!sem.alarma;
+  $("sem-inicio").oninput = e => { sem.inicio = e.target.value; guardarEstado(); };
+  $("sem-fin").oninput = e => { sem.fin = e.target.value; guardarEstado(); };
+  $("sem-festivos").onchange = e => { sem.festivos = e.target.checked; guardarEstado(); };
+  $("sem-alarma").onchange = e => { sem.alarma = e.target.checked; guardarEstado(); };
+}
+const fechaBonita = iso => new Date(iso + "T12:00:00").toLocaleDateString("es-CO", { day: "numeric", month: "long" });
+$("btn-ics").onclick = () => {
+  const aviso = $("aviso-ics");
+  const sem = estado.semestre;
+  if (!resultado || !resultado.mejores.length) return;
+  if (!sem.inicio || !sem.fin || sem.fin < sem.inicio) {
+    aviso.className = "aviso mal";
+    aviso.textContent = "Revisa las fechas: el último día de clases debe ser después del primero.";
+    return;
+  }
+  const op = resultado.mejores[seleccion];
+  const r = generarICS(op.grupos, { inicio: sem.inicio, fin: sem.fin, saltarFestivos: sem.festivos, alarma: sem.alarma });
+  if (!r.clases) {
+    aviso.className = "aviso mal";
+    aviso.textContent = "Entre esas fechas no cae ninguna clase. Revisa el inicio y el fin del semestre.";
+    return;
+  }
+  const blob = new Blob([r.texto], { type: "text/calendar;charset=utf-8" });
+  const a = el("a", { href: URL.createObjectURL(blob), download: "mi-horario.ics" });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  aviso.className = "aviso ok";
+  aviso.textContent = `Listo: ${r.clases} clases a la semana, del ${fechaBonita(sem.inicio)} al ${fechaBonita(sem.fin)}` +
+    (sem.festivos ? (r.omitidos ? `, sin las ${r.omitidos} que caen en festivo.` : ", y ninguna cae en festivo.") : ".") +
+    " Abre el archivo para agregarlo a tu calendario.";
+};
+
 cargarEstado();
+if (!Array.isArray(estado.bloqueos)) estado.bloqueos = [];
+prepararCalendario();
 pintarFilas();
+pintarBloqueos();
 pintarPrefs();
 calcular();
 </script>
