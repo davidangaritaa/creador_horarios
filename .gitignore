@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+horario.png
+.DS_Store

@@ -1,0 +1,24 @@
+materia,grupo,dia,inicio,fin,profesor,salon
+Calculo III,A,Lun,08:00,10:00,Perez,A-201
+Calculo III,A,Mie,08:00,10:00,Perez,A-201
+Calculo III,B,Mar,10:00,12:00,Gomez,A-305
+Calculo III,B,Jue,10:00,12:00,Gomez,A-305
+Calculo III,C,Lun,06:00,08:00,Rojas,B-104
+Calculo III,C,Mie,06:00,08:00,Rojas,B-104
+Bases de Datos,A,Lun,10:00,12:00,Diaz,Lab-3
+Bases de Datos,A,Mie,10:00,12:00,Diaz,Lab-3
+Bases de Datos,B,Mar,14:00,16:00,Ortiz,Lab-1
+Bases de Datos,B,Jue,14:00,16:00,Ortiz,Lab-1
+Bases de Datos,C,Mar,18:00,20:00,Ortiz,Lab-1
+Bases de Datos,C,Jue,18:00,20:00,Ortiz,Lab-1
+Redes,A,Mar,08:00,10:00,Suarez,C-210
+Redes,A,Jue,08:00,10:00,Suarez,C-210
+Redes,B,Lun,14:00,16:00,Suarez,C-210
+Redes,B,Mie,14:00,16:00,Suarez,C-210
+Ingles IV,A,Vie,08:00,11:00,Smith,D-101
+Ingles IV,B,Vie,13:00,16:00,Brown,D-102
+Ingles IV,C,Lun,12:00,14:00,Smith,D-101
+Ingles IV,C,Mie,12:00,13:00,Smith,D-101
+Etica,A,Mar,12:00,14:00,Mora,E-001
+Etica,B,Vie,11:00,13:00,Mora,E-001
+Etica,C,Jue,16:00,18:00,Mora,E-001
