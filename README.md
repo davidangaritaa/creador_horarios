@@ -10,8 +10,8 @@ Además premia tener el **viernes libre** y las clases de los **lunes**, que en 
 
 ## ¿Qué hace?
 
-Le das un archivo con las materias que quieres ver y los grupos (NRC) de cada una con sus días y horas.
-El programa escoge **un grupo por materia** y te muestra los mejores horarios posibles.
+Escribes (o pegas desde una captura) las materias que quieres ver y los grupos (NRC) de cada una
+con sus días y horas. La página escoge **un grupo por materia** y te muestra los mejores horarios posibles.
 
 Cada horario recibe un **puntaje** (menos es mejor; puede ser negativo):
 
@@ -37,13 +37,11 @@ sube los puntos a 100).
 a viernes de 6 a 8 a. m."), lo marcas como hora ocupada, para uno o varios días a la vez: ningún grupo que se cruce con ella entra en el horario, y si queda entre dos
 clases **no cuenta como hueco**.
 
-Los pesos se cambian en [`horario/costo.py`](horario/costo.py) (`PESOS`, `HORA_INICIO`, `HORA_FIN`).
+Los puntos de cada regla y el rango de horas se cambian en la misma página, en **"Cómo se califica"**.
 
 ## Cómo usarlo
 
-### En el navegador (sin instalar nada)
-
-Abre [`index.html`](index.html) con doble clic, o entra a la versión publicada en
+No hay que instalar nada. Abre [`index.html`](index.html) con doble clic, o entra a la versión publicada en
 **https://davidangaritaa.github.io/creador-horarios/**.
 
 - **Arriba ves el resultado**: un titular que describe el mejor horario (por ejemplo, *"Clases lunes,
@@ -64,7 +62,7 @@ Abre [`index.html`](index.html) con doble clic, o entra a la versión publicada 
 Todo se calcula en tu navegador: los datos no se envían a ningún lado, y la página recuerda tus
 materias si la cierras.
 
-#### Pasar capturas del portal con una IA
+### Pasar capturas del portal con una IA
 
 Si tienes capturas de la oferta de grupos, no tienes que escribirlas a mano:
 
@@ -77,52 +75,10 @@ grupos cada una: un portal en computador ([`foto-calculo-iii.png`](ejemplos/foto
 una pantalla de celular ([`foto-redes.png`](ejemplos/foto-redes.png)) y una foto inclinada y con
 reflejo tomada a un monitor ([`foto-bases-de-datos.png`](ejemplos/foto-bases-de-datos.png)).
 
-### En la consola (Python)
-
-Necesitas **Python 3.9 o más reciente**. En Windows, si `python` abre la Microsoft Store,
-usa `py` en su lugar (por ejemplo, `py main.py ejemplos/cursos.csv`).
-
-```bash
-# 1. Instalar la librería para dibujar el horario
-pip install -r requirements.txt
-
-# 2. Correr con el ejemplo
-python main.py ejemplos/cursos.csv
-
-# 3. Ver los 5 mejores y guardar la imagen con otro nombre
-python main.py ejemplos/cursos.csv --top 5 --imagen mi_horario.png
-
-# 4. Marcar horas ocupadas: un día, un rango de días o varios días (se puede repetir)
-python main.py ejemplos/cursos.csv --bloquear "Lun-Vie 06:00-08:00" --bloquear "Mar,Jue 14:00-18:00"
-
-# 5. Evitar profesores (basta con parte del nombre, sin importar tildes)
-python main.py ejemplos/cursos.csv --evitar "Rojas" --evitar "perez"
-```
-
-Salida en la consola:
-
-```
-Materias: 5
-Combinaciones posibles: 162
-Nodos revisados: 24 | tiempo: 0.5 ms
-
-Opción 1 (puntaje -1.50)
-Hora   Lun             Mar             Mie             Jue             Vie
-08:00  Calculo III (A)                 Calculo III (A)
-10:00  Bases de Da (A)                 Bases de Da (A)
-12:00  Ingles IV (C)   Etica (A)       Ingles IV (C)
-14:00  Redes (B)                       Redes (B)
-...
-Huecos: 1.0 h | Antes de las 8: 0.0 h | Después de las 6 p. m.: 0.0 h | Días: 3 | Lunes: 8.0 h | Viernes: libre | Puntaje: -1.50
-```
-
-Además guarda el mejor horario como imagen:
-
-![Imagen generada por la versión de Python](docs/ejemplo.png)
-
 ## Formato de los cursos (CSV)
 
-Una fila por **cada sesión** de clase. Si un grupo ve clase lunes y miércoles, son dos filas:
+Para cargar un archivo con **Cargar CSV** (o descargarlo con **Descargar CSV**), va una fila por
+**cada sesión** de clase. Si un grupo ve clase lunes y miércoles, son dos filas:
 
 ```csv
 materia,grupo,dia,inicio,fin,profesor,salon
@@ -132,14 +88,15 @@ Calculo III,B,Mar,10:00,12:00,Gomez,A-305
 ```
 
 - `dia`: `Lun`, `Mar`, `Mie`, `Jue`, `Vie` o `Sab`
-- `inicio` y `fin`: hora en formato 24 h (`14:00` = 2 p. m.)
+- `inicio` y `fin`: hora en formato 24 h (`14:00` = 2 p. m.); también entiende `2:00 p. m.`
 - `profesor` y `salon` son opcionales
 
 Puedes armar el archivo en Excel y guardarlo como **CSV UTF-8**.
 
 ## ¿Cómo funciona por dentro?
 
-Usa **backtracking con poda** (ramificación y poda):
+Todo el cálculo está en [`index.html`](index.html), en JavaScript, y usa **backtracking con poda**
+(ramificación y poda):
 
 1. Ordena las materias de la que tiene menos grupos a la que tiene más.
 2. Escoge un grupo de la primera materia, luego uno de la segunda, y así sucesivamente.
@@ -155,7 +112,8 @@ materia **no cabe** y arma el mejor horario con las demás.
 puntos solo pueden **subir** al agregar materias. Los huecos **no** entran en la cota: una materia
 nueva puede caer en medio de un hueco y taparlo, así que los huecos pueden **bajar**.
 El premio del lunes también hace **bajar** el puntaje, así que la cota resta de una vez el máximo
-premio de lunes que todavía podrían dar las materias que faltan.
+premio de lunes que todavía podrían dar las materias que faltan. Los profesores evitados solo
+pueden subir el puntaje, así que también entran en la cota.
 
 Sin poda habría que revisar el producto de los grupos de todas las materias
 (por ejemplo, 6 materias con 4 grupos = 4⁶ = 4.096 horarios). La poda revisa muchos menos.
@@ -164,32 +122,29 @@ Sin poda habría que revisar el producto de los grupos de todas las materias
 
 ```
 creador-horarios/
-├── index.html           # versión web (mismo algoritmo en JavaScript, festivos y calendario .ics)
-├── main.py              # punto de entrada (línea de comandos)
-├── horario/
-│   ├── datos.py         # lee el CSV y las horas ocupadas
-│   ├── costo.py         # puntaje: huecos, horas fuera de rango, días, viernes y lunes
-│   ├── buscador.py      # backtracking con poda (sin los grupos que caen en horas ocupadas)
-│   └── mostrar.py       # tabla en consola e imagen PNG
+├── index.html           # toda la aplicación: algoritmo, festivos, calendario .ics e interfaz
 ├── ejemplos/
 │   ├── cursos.csv       # datos de ejemplo
 │   └── foto-*.png       # capturas de muestra para probar la lectura con IA
-├── tests/               # pruebas: poda = fuerza bruta, y la web = Python
+├── tests/pruebas.js     # pruebas (se corren con Node.js)
 └── docs/                # imágenes del README
 ```
 
 ## Pruebas
 
+Necesitas [Node.js](https://nodejs.org/) (solo para las pruebas; la página no lo necesita):
+
 ```bash
-python tests/test_buscador.py   # la poda encuentra el mismo óptimo que probar todo
-python tests/test_web.py        # la página web da lo mismo que Python (necesita Node.js)
+node tests/pruebas.js
 ```
 
-- `test_buscador.py` comprueba, con cientos de casos al azar (con y sin horas ocupadas), que la
-  búsqueda con poda encuentra el mismo óptimo que probar todas las combinaciones.
-- `test_web.py` corre el JavaScript de `index.html` con Node.js y comprueba que da los mismos
-  puntajes que Python en 300 casos al azar. También revisa los festivos de 2026 contra la lista
-  oficial y el archivo de calendario. Si Node.js no está instalado, se salta.
+Toman la lógica de `index.html` y comprueban, entre otras cosas, que:
+
+- la búsqueda con poda encuentra **el mismo óptimo que probar todas las combinaciones**, en 500
+  casos al azar con horas ocupadas, profesores evitados y pesos distintos;
+- las horas ocupadas entre clases no cuentan como hueco y el premio del lunes funciona;
+- se leen bien los CSV (con `,` o `;`, tildes, a. m. / p. m.) y las respuestas pegadas desde una IA;
+- los festivos de 2026 coinciden con la lista oficial y el archivo `.ics` sale bien armado.
 
 ## Próximas ideas
 
@@ -205,6 +160,10 @@ python tests/test_web.py        # la página web da lo mismo que Python (necesit
 
 Nació a partir del proyecto de **Matemáticas Computacionales (UNAB)**, donde se resolvió el reparto
 de prácticas de un laboratorio con backtracking, poda y gradiente descendente.
+
+La primera versión fue un programa en **Python** para la consola. Ahora todo vive en la página web,
+pero esa versión sigue en el historial:
+[código en Python](https://github.com/davidangaritaa/creador-horarios/tree/d962674).
 
 ## Licencia
 
