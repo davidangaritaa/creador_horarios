@@ -7,16 +7,32 @@ Idea:
      encontrados (costo mínimo >= el peor de los mejores), se poda.
   4. Al completar todas las materias, se guarda el horario si está entre
      los 'top' mejores.
+
+Antes de empezar se quitan los grupos que caen en horas ocupadas (bloqueos).
 """
 
-from .costo import costo, cota_inferior, grupo_choca, horas_lunes
+from .costo import costo, cota_inferior, grupo_choca, horas_lunes, choca_con_bloqueos
 
 
-def buscar(cursos: dict, top: int = 3):
+def quitar_bloqueados(cursos: dict, bloqueos=()):
+    """Quita los grupos que caen en horas ocupadas.
+
+    Devuelve (cursos que quedan, materias que se quedaron sin ningún grupo).
+    """
+    quedan = {m: [g for g in gs if not choca_con_bloqueos(g, bloqueos)] for m, gs in cursos.items()}
+    sin_grupo = [m for m, gs in quedan.items() if not gs]
+    return quedan, sin_grupo
+
+
+def buscar(cursos: dict, top: int = 3, bloqueos=()):
     """Devuelve (lista de los mejores horarios, nodos revisados).
 
     Cada horario es una tupla (costo, [Grupo, Grupo, ...]).
+    Si alguna materia se queda sin grupos por las horas ocupadas, no hay horario.
     """
+    cursos, sin_grupo = quitar_bloqueados(cursos, bloqueos)
+    if sin_grupo:
+        return [], 0
     # Materias con menos grupos primero: se equivoca menos y poda antes
     materias = sorted(cursos, key=lambda m: len(cursos[m]))
 
@@ -38,7 +54,7 @@ def buscar(cursos: dict, top: int = 3):
         nodos += 1
 
         if i == len(materias):                      # horario completo
-            c = costo(elegidos)
+            c = costo(elegidos, bloqueos)
             if c < peor_aceptado():
                 mejores.append((c, list(elegidos)))
                 mejores.sort(key=lambda x: x[0])

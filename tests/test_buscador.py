@@ -10,25 +10,25 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from horario.datos import leer_cursos
 from horario.buscador import buscar
-from horario.costo import costo, grupo_choca, horas_de_hueco
+from horario.costo import costo, grupo_choca, horas_de_hueco, choca_con_bloqueos
 from horario.datos import Sesion
 
 EJEMPLO = os.path.join(os.path.dirname(__file__), "..", "ejemplos", "cursos.csv")
 
 
-def fuerza_bruta(cursos):
+def fuerza_bruta(cursos, bloqueos=()):
     """Prueba TODAS las combinaciones y devuelve el menor costo."""
     mejor = float("inf")
     for combo in itertools.product(*cursos.values()):
         elegidos = []
         valido = True
         for g in combo:
-            if grupo_choca(g, elegidos):
+            if grupo_choca(g, elegidos) or choca_con_bloqueos(g, bloqueos):
                 valido = False
                 break
             elegidos.append(g)
         if valido:
-            mejor = min(mejor, costo(elegidos))
+            mejor = min(mejor, costo(elegidos, bloqueos))
     return mejor
 
 
@@ -42,6 +42,31 @@ def test_huecos():
     # Clases de 8 a 10 y de 12 a 14 el mismo día: 2 horas de hueco
     sesiones = [Sesion("Lun", 8 * 60, 10 * 60), Sesion("Lun", 12 * 60, 14 * 60)]
     assert horas_de_hueco(sesiones) == 2.0
+
+
+def test_horas_ocupadas_no_son_hueco():
+    # Clases de 8 a 10 y de 14 a 16; trabajo de 10 a 14 en medio: no hay hueco
+    sesiones = [Sesion("Lun", 8 * 60, 10 * 60), Sesion("Lun", 14 * 60, 16 * 60)]
+    assert horas_de_hueco(sesiones, [Sesion("Lun", 10 * 60, 14 * 60)]) == 0.0
+    # Solo de 11 a 12 ocupado: quedan 3 h de hueco
+    assert horas_de_hueco(sesiones, [Sesion("Lun", 11 * 60, 12 * 60)]) == 3.0
+    # Dos bloqueos que se pisan (10-12 y 11-13) no se cuentan doble: queda 1 h
+    assert horas_de_hueco(sesiones, [Sesion("Lun", 600, 720), Sesion("Lun", 660, 780)]) == 1.0
+    # Un bloqueo fuera de las clases (17-19) no cambia nada
+    assert horas_de_hueco(sesiones, [Sesion("Lun", 17 * 60, 19 * 60)]) == 4.0
+
+
+def test_bloqueos_quitan_grupos():
+    from horario.datos import leer_bloqueo
+    cursos = leer_cursos(EJEMPLO)
+    bloqueos = [leer_bloqueo("Lun 14:00-18:00")]
+    mejores, _ = buscar(cursos, top=5, bloqueos=bloqueos)
+    assert mejores
+    for _, grupos in mejores:
+        assert not any(choca_con_bloqueos(g, bloqueos) for g in grupos)
+    # Si una materia queda sin grupos, no hay horario
+    todo_ocupado = [leer_bloqueo(f"{d} 06:00-22:00") for d in ["Lun", "Mar", "Mie", "Jue", "Vie"]]
+    assert buscar(cursos, top=1, bloqueos=todo_ocupado) == ([], 0)
 
 
 def test_viernes_y_lunes():
@@ -58,7 +83,7 @@ def test_viernes_y_lunes():
 
 
 def test_poda_con_muchos_casos_aleatorios():
-    """La poda (con el premio del lunes) da el mismo óptimo que la fuerza bruta."""
+    """La poda (con el premio del lunes y horas ocupadas) da el mismo óptimo que la fuerza bruta."""
     import random
     from horario.datos import Grupo, DIAS
     from horario.costo import se_cruzan
@@ -77,8 +102,12 @@ def test_poda_con_muchos_casos_aleatorios():
                         sesiones.append(nueva)
                 grupos.append(Grupo(f"M{m}", f"G{g}", sesiones))
             cursos[f"M{m}"] = grupos
-        mejores, _ = buscar(cursos, top=1)
-        esperado = fuerza_bruta(cursos)
+        bloqueos = []
+        for _ in range(rnd.choice([0, 0, 1, 2])):
+            ini = rnd.randint(7, 18) * 60
+            bloqueos.append(Sesion(rnd.choice(DIAS[:5]), ini, ini + rnd.choice([60, 120, 240])))
+        mejores, _ = buscar(cursos, top=1, bloqueos=bloqueos)
+        esperado = fuerza_bruta(cursos, bloqueos)
         if esperado == float("inf"):
             assert not mejores
         else:
@@ -88,6 +117,8 @@ def test_poda_con_muchos_casos_aleatorios():
 if __name__ == "__main__":
     test_poda_encuentra_el_optimo()
     test_huecos()
+    test_horas_ocupadas_no_son_hueco()
+    test_bloqueos_quitan_grupos()
     test_viernes_y_lunes()
     test_poda_con_muchos_casos_aleatorios()
     print("Todas las pruebas pasaron.")

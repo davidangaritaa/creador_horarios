@@ -13,6 +13,8 @@ Formato del CSV (una fila por cada sesión de clase):
 """
 
 import csv
+import re
+import unicodedata
 from dataclasses import dataclass, field
 
 DIAS = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab"]
@@ -47,6 +49,26 @@ def a_hora(minutos: int) -> str:
     return f"{minutos // 60:02d}:{minutos % 60:02d}"
 
 
+def normalizar_dia(texto: str):
+    """'miércoles', 'Mié' o 'MIE' -> 'Mie'. Devuelve None si no es un día válido."""
+    t = unicodedata.normalize("NFD", (texto or "").strip())
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn").lower()
+    dia = t[:1].upper() + t[1:3]
+    return dia if dia in DIAS else None
+
+
+def leer_bloqueo(texto: str) -> Sesion:
+    """Convierte 'Mar 14:00-18:00' en una Sesion (una hora ocupada)."""
+    m = re.match(r"^\s*(\S+)\s+(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s*$", texto or "")
+    dia = normalizar_dia(m.group(1)) if m else None
+    if not dia:
+        raise ValueError(f"No entiendo la hora ocupada '{texto}'. Escríbela así: \"Mar 14:00-18:00\"")
+    inicio, fin = a_minutos(m.group(2)), a_minutos(m.group(3))
+    if fin <= inicio:
+        raise ValueError(f"En '{texto}' la hora de fin debe ser mayor que la de inicio")
+    return Sesion(dia, inicio, fin)
+
+
 def leer_cursos(ruta: str) -> dict:
     """Lee el CSV y devuelve {materia: [Grupo, Grupo, ...]}."""
     grupos = {}  # (materia, grupo) -> Grupo
@@ -54,8 +76,8 @@ def leer_cursos(ruta: str) -> dict:
         for n, fila in enumerate(csv.DictReader(f), start=2):
             materia = fila["materia"].strip()
             nombre = fila["grupo"].strip()
-            dia = fila["dia"].strip().capitalize()[:3]
-            if dia not in DIAS:
+            dia = normalizar_dia(fila["dia"])
+            if not dia:
                 raise ValueError(f"Línea {n}: día '{fila['dia']}' no válido. Usa {DIAS}")
             inicio, fin = a_minutos(fila["inicio"]), a_minutos(fila["fin"])
             if fin <= inicio:

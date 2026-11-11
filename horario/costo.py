@@ -11,6 +11,10 @@ Premio (resta puntos):
   - Cada hora de clase el lunes. En Colombia casi todos los festivos caen
     lunes, así que las clases del lunes se pierden seguido y el semestre
     queda más liviano.
+
+Horas ocupadas (bloqueos, por ejemplo "los martes trabajo de 2 a 6"):
+  - Ningún grupo que se cruce con ellas entra en el horario (ver buscador.py).
+  - El tiempo ocupado entre dos clases NO cuenta como hueco.
 """
 
 from .datos import DIAS
@@ -49,17 +53,35 @@ def horas_fuera_de_rango(sesion):
     return temprano, tarde
 
 
-def horas_de_hueco(sesiones_del_dia):
-    """Huecos de un día = (de la primera a la última clase) - (horas de clase)."""
+def choca_con_bloqueos(grupo, bloqueos) -> bool:
+    """True si alguna sesión del grupo cae en una hora ocupada."""
+    return any(se_cruzan(s, b) for s in grupo.sesiones for b in bloqueos)
+
+
+def horas_de_hueco(sesiones_del_dia, bloqueos_del_dia=()):
+    """Huecos de un día = (de la primera a la última clase) - (tiempo ocupado).
+
+    Tiempo ocupado = clases + horas bloqueadas que caen entre la primera y la
+    última clase (si trabajas entre dos clases, ese rato no es un hueco).
+    Los tramos se juntan para no contar dos veces el mismo minuto.
+    """
     if not sesiones_del_dia:
         return 0.0
     primera = min(s.inicio for s in sesiones_del_dia)
     ultima = max(s.fin for s in sesiones_del_dia)
-    en_clase = sum(s.fin - s.inicio for s in sesiones_del_dia)
-    return (ultima - primera - en_clase) / 60
+    tramos = [(s.inicio, s.fin) for s in sesiones_del_dia]
+    tramos += [(max(b.inicio, primera), min(b.fin, ultima)) for b in bloqueos_del_dia]
+    tramos = sorted(t for t in tramos if t[0] < t[1])
+    ocupado, hasta = 0, primera
+    for ini, fin in tramos:
+        ini = max(ini, hasta)
+        if fin > ini:
+            ocupado += fin - ini
+            hasta = fin
+    return (ultima - primera - ocupado) / 60
 
 
-def detalle_costo(grupos):
+def detalle_costo(grupos, bloqueos=()):
     """Devuelve un diccionario con cada parte del costo y el total."""
     por_dia = {d: [] for d in DIAS}
     temprano = tarde = 0.0
@@ -70,7 +92,8 @@ def detalle_costo(grupos):
             temprano += t
             tarde += l
 
-    huecos = sum(horas_de_hueco(ses) for ses in por_dia.values())
+    huecos = sum(horas_de_hueco(ses, [b for b in bloqueos if b.dia == d])
+                 for d, ses in por_dia.items())
     dias = sum(1 for ses in por_dia.values() if ses)
     viernes = 1 if por_dia["Vie"] else 0
     horas_lunes = sum(s.fin - s.inicio for s in por_dia["Lun"]) / 60
@@ -88,8 +111,8 @@ def horas_lunes(grupo) -> float:
     return sum(s.fin - s.inicio for s in grupo.sesiones if s.dia == "Lun") / 60
 
 
-def costo(grupos) -> float:
-    return detalle_costo(grupos)["total"]
+def costo(grupos, bloqueos=()) -> float:
+    return detalle_costo(grupos, bloqueos)["total"]
 
 
 def cota_inferior(grupos, lunes_pendiente=0.0):

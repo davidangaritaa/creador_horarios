@@ -9,8 +9,8 @@ def dias_usados(grupos):
     return [d for d in DIAS if d in usados or d != "Sab"]
 
 
-def imprimir(grupos, titulo="Horario"):
-    """Tabla por horas (filas) y días (columnas)."""
+def imprimir(grupos, titulo="Horario", bloqueos=()):
+    """Tabla por horas (filas) y días (columnas). Las horas ocupadas salen como (ocupado)."""
     dias = dias_usados(grupos)
     inicio = min(s.inicio for g in grupos for s in g.sesiones) // 60 * 60
     fin = -(-max(s.fin for g in grupos for s in g.sesiones) // 60) * 60
@@ -22,6 +22,9 @@ def imprimir(grupos, titulo="Horario"):
         fila = f"{a_hora(t)}  "
         for d in dias:
             texto = ""
+            for b in bloqueos:
+                if b.dia == d and b.inicio < t + 60 and t < b.fin:
+                    texto = "(ocupado)"
             for g in grupos:
                 for s in g.sesiones:
                     if s.dia == d and s.inicio < t + 60 and t < s.fin:
@@ -29,14 +32,14 @@ def imprimir(grupos, titulo="Horario"):
             fila += f"{texto:<{ancho}}"
         print(fila)
 
-    d = detalle_costo(grupos)
+    d = detalle_costo(grupos, bloqueos)
     print(f"Huecos: {d['huecos']:.1f} h | Antes de las 8: {d['temprano']:.1f} h | "
           f"Después de las 6 p. m.: {d['tarde']:.1f} h | Días: {d['dias']} | "
           f"Lunes: {d['horas_lunes']:.1f} h | Viernes: {'sí' if d['viernes'] else 'libre'} | "
           f"Puntaje: {d['total']:.2f}")
 
 
-def guardar_imagen(grupos, ruta, titulo="Mi horario"):
+def guardar_imagen(grupos, ruta, titulo="Mi horario", bloqueos=()):
     """Dibuja el horario como un calendario semanal y lo guarda en PNG."""
     import matplotlib
     matplotlib.use("Agg")
@@ -56,6 +59,22 @@ def guardar_imagen(grupos, ruta, titulo="Mi horario"):
     # Zonas penalizadas (antes de las 8 y después de las 6) en gris claro
     ax.axhspan(inicio, HORA_INICIO / 60, color="#eeeeee", zorder=0)
     ax.axhspan(HORA_FIN / 60, fin, color="#eeeeee", zorder=0)
+
+    # Horas ocupadas: rayadas y con borde punteado
+    for b in bloqueos:
+        if b.dia not in dias:
+            continue
+        x = dias.index(b.dia)
+        y0, y1 = max(b.inicio / 60, inicio), min(b.fin / 60, fin)
+        if y1 <= y0:
+            continue
+        ax.add_patch(FancyBboxPatch((x + 0.05, y0 + 0.03), 0.9, (y1 - y0) - 0.06,
+                                    boxstyle="round,pad=0,rounding_size=0.08",
+                                    facecolor="none", edgecolor="#888888", hatch="///",
+                                    linestyle="--", zorder=2))
+        ax.text(x + 0.5, (y0 + y1) / 2, "Ocupado", ha="center", va="center",
+                fontsize=8, color="#555555", zorder=3,
+                bbox={"facecolor": "white", "edgecolor": "none", "pad": 1.5})
 
     for g in grupos:
         for s in g.sesiones:
@@ -83,7 +102,7 @@ def guardar_imagen(grupos, ruta, titulo="Mi horario"):
     for lado in ax.spines.values():
         lado.set_visible(False)
 
-    d = detalle_costo(grupos)
+    d = detalle_costo(grupos, bloqueos)
     ax.set_title(f"{titulo} — huecos: {d['huecos']:.1f} h · días: {d['dias']} · "
                  f"puntaje: {d['total']:.2f}", pad=28, fontsize=11)
     fig.tight_layout()
