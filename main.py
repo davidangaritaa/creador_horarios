@@ -3,13 +3,13 @@
 Uso:
     python main.py ejemplos/cursos.csv
     python main.py ejemplos/cursos.csv --top 5 --imagen mi_horario.png
-    python main.py ejemplos/cursos.csv --bloquear "Mar 14:00-18:00" --bloquear "Jue 14:00-18:00"
+    python main.py ejemplos/cursos.csv --bloquear "Mar 14:00-18:00" --bloquear "Lun-Vie 06:00-07:00"
 """
 
 import argparse
 import time
 
-from horario.datos import leer_cursos, leer_bloqueo, a_hora
+from horario.datos import leer_cursos, leer_bloqueos, a_hora
 from horario.buscador import buscar, total_combinaciones, quitar_bloqueados
 from horario.mostrar import imprimir, guardar_imagen
 
@@ -19,12 +19,13 @@ def main():
     parser.add_argument("csv", help="archivo CSV con los cursos disponibles")
     parser.add_argument("--top", type=int, default=3, help="cuántos horarios mostrar (por defecto 3)")
     parser.add_argument("--imagen", default="horario.png", help="dónde guardar la imagen del mejor horario")
-    parser.add_argument("--bloquear", action="append", default=[], metavar='"Mar 14:00-18:00"',
-                        help="hora ocupada (trabajo, deporte...); se puede repetir")
+    parser.add_argument("--bloquear", action="append", default=[], metavar='"Lun-Vie 14:00-18:00"',
+                        help='hora ocupada (trabajo, deporte...): un día ("Mar"), un rango ("Lun-Vie") '
+                             'o varios ("Lun,Mie"); se puede repetir')
     args = parser.parse_args()
 
     try:
-        bloqueos = [leer_bloqueo(b) for b in args.bloquear]
+        bloqueos = [s for b in args.bloquear for s in leer_bloqueos(b)]
     except ValueError as e:
         parser.error(str(e))
 

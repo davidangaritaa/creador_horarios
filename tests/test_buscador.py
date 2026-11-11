@@ -57,16 +57,33 @@ def test_horas_ocupadas_no_son_hueco():
 
 
 def test_bloqueos_quitan_grupos():
-    from horario.datos import leer_bloqueo
+    from horario.datos import leer_bloqueos
     cursos = leer_cursos(EJEMPLO)
-    bloqueos = [leer_bloqueo("Lun 14:00-18:00")]
+    bloqueos = leer_bloqueos("Lun 14:00-18:00")
     mejores, _ = buscar(cursos, top=5, bloqueos=bloqueos)
     assert mejores
     for _, grupos in mejores:
         assert not any(choca_con_bloqueos(g, bloqueos) for g in grupos)
     # Si una materia queda sin grupos, no hay horario
-    todo_ocupado = [leer_bloqueo(f"{d} 06:00-22:00") for d in ["Lun", "Mar", "Mie", "Jue", "Vie"]]
+    todo_ocupado = leer_bloqueos("Lun-Vie 06:00-22:00")
     assert buscar(cursos, top=1, bloqueos=todo_ocupado) == ([], 0)
+
+
+def test_leer_horas_ocupadas_por_rangos():
+    from horario.datos import leer_bloqueos
+    dias = lambda texto: [s.dia for s in leer_bloqueos(texto)]
+    assert dias("Mar 14:00-18:00") == ["Mar"]
+    assert dias("Lun-Vie 07:00-12:00") == ["Lun", "Mar", "Mie", "Jue", "Vie"]
+    assert dias("lunes-miércoles 07:00 - 12:00") == ["Lun", "Mar", "Mie"]
+    assert dias("Vie,Lun,Mie 14:00-16:00") == ["Lun", "Mie", "Vie"]
+    assert dias("Lun-Mar,Jue 14:00-16:00") == ["Lun", "Mar", "Jue"]
+    assert all(s.inicio == 420 and s.fin == 720 for s in leer_bloqueos("Lun-Vie 07:00-12:00"))
+    for malo in ["Vie-Lun 07:00-12:00", "Lun-Xyz 07:00-12:00", "Lun-Vie de 7 a 12", "Lun-Vie 12:00-07:00"]:
+        try:
+            leer_bloqueos(malo)
+            assert False, malo
+        except ValueError:
+            pass
 
 
 def test_viernes_y_lunes():
@@ -119,6 +136,7 @@ if __name__ == "__main__":
     test_huecos()
     test_horas_ocupadas_no_son_hueco()
     test_bloqueos_quitan_grupos()
+    test_leer_horas_ocupadas_por_rangos()
     test_viernes_y_lunes()
     test_poda_con_muchos_casos_aleatorios()
     print("Todas las pruebas pasaron.")

@@ -57,16 +57,42 @@ def normalizar_dia(texto: str):
     return dia if dia in DIAS else None
 
 
-def leer_bloqueo(texto: str) -> Sesion:
-    """Convierte 'Mar 14:00-18:00' en una Sesion (una hora ocupada)."""
+def leer_dias(texto: str) -> list:
+    """'Lun' -> ['Lun'];  'Lun-Vie' -> ['Lun', ..., 'Vie'];  'Lun,Mie' -> ['Lun', 'Mie'].
+
+    Devuelve una lista vacía si algo no es un día válido.
+    """
+    dias = []
+    for parte in (texto or "").split(","):
+        if "-" in parte:
+            desde, hasta = (normalizar_dia(x) for x in parte.split("-", 1))
+            if not desde or not hasta or DIAS.index(desde) > DIAS.index(hasta):
+                return []
+            dias += DIAS[DIAS.index(desde):DIAS.index(hasta) + 1]
+        else:
+            dia = normalizar_dia(parte)
+            if not dia:
+                return []
+            dias.append(dia)
+    return [d for d in DIAS if d in dias]          # sin repetidos y en orden
+
+
+def leer_bloqueos(texto: str) -> list:
+    """Convierte una hora ocupada en una Sesion por cada día.
+
+    'Mar 14:00-18:00'      -> el martes
+    'Lun-Vie 07:00-12:00'  -> de lunes a viernes
+    'Lun,Mie 14:00-16:00'  -> lunes y miércoles
+    """
+    ejemplo = 'Escríbela así: "Mar 14:00-18:00" o "Lun-Vie 07:00-12:00"'
     m = re.match(r"^\s*(\S+)\s+(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s*$", texto or "")
-    dia = normalizar_dia(m.group(1)) if m else None
-    if not dia:
-        raise ValueError(f"No entiendo la hora ocupada '{texto}'. Escríbela así: \"Mar 14:00-18:00\"")
+    dias = leer_dias(m.group(1)) if m else []
+    if not dias:
+        raise ValueError(f"No entiendo la hora ocupada '{texto}'. {ejemplo}")
     inicio, fin = a_minutos(m.group(2)), a_minutos(m.group(3))
     if fin <= inicio:
         raise ValueError(f"En '{texto}' la hora de fin debe ser mayor que la de inicio")
-    return Sesion(dia, inicio, fin)
+    return [Sesion(d, inicio, fin) for d in dias]
 
 
 def leer_cursos(ruta: str) -> dict:

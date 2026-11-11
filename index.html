@@ -156,7 +156,11 @@
   .exportar input[type=date]:focus { outline: none; border-bottom-color: var(--lapicero); }
   .exportar label.marca-check { display: flex; gap: 9px; align-items: center; margin: 6px 0; }
   .exportar input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--lapicero); }
-  table.cursos.bloqueos { min-width: 520px; }
+  table.cursos.bloqueos { min-width: 720px; }
+  .dias-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px 0; }
+  .dias-chips button { padding: 4px 8px; font-size: .82rem; border-radius: 7px; min-width: 40px; }
+  .dias-chips button[aria-pressed=true] { background: var(--tinta); border-color: var(--tinta); color: var(--papel); }
+  .dias-chips button.atajo { min-width: 0; border-style: dashed; color: var(--tinta-suave); background: transparent; margin-left: 4px; }
 
   /* Grupos escogidos */
   .escogidos { list-style: none; margin: 18px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 28px; }
@@ -341,10 +345,10 @@
           <table class="cursos bloqueos">
             <thead>
               <tr>
-                <th style="width:36%">Qué es</th>
-                <th style="width:22%">Día</th>
-                <th style="width:18%">Desde</th>
-                <th style="width:18%">Hasta</th>
+                <th style="width:24%">Qué es</th>
+                <th style="width:44%">Días</th>
+                <th style="width:13%">Desde</th>
+                <th style="width:13%">Hasta</th>
                 <th style="width:44px"><span style="position:absolute;left:-9999px">Acciones</span></th>
               </tr>
             </thead>
@@ -907,31 +911,59 @@ function configuracion() {
 }
 
 /* Horas ocupadas: separa las que están bien escritas de las que tienen errores */
+/* Cada hora ocupada puede valer para varios días (por ejemplo, de lunes a viernes).
+   Se expande en una hora ocupada por día para la búsqueda. */
 function revisarBloqueos() {
   const validos = [], errores = [], malos = new Set();
   estado.bloqueos.forEach((b, i) => {
     if (!b.inicio && !b.fin) return;                       // fila a medio llenar
-    const dia = normalizarDia(b.dia), inicio = aMinutos(b.inicio), fin = aMinutos(b.fin);
+    const dias = DIAS.filter(d => (b.dias || []).includes(d));
+    const inicio = aMinutos(b.inicio), fin = aMinutos(b.fin);
     const nombre = (b.nombre || "").trim() || `Hora ocupada ${i + 1}`;
-    if (!dia || isNaN(inicio) || isNaN(fin)) { errores.push(`${nombre}: falta el día o alguna hora.`); malos.add(i); return; }
+    if (!dias.length) { errores.push(`${nombre}: elige al menos un día.`); malos.add(i); return; }
+    if (isNaN(inicio) || isNaN(fin)) { errores.push(`${nombre}: falta la hora "desde" o "hasta".`); malos.add(i); return; }
     if (fin <= inicio) { errores.push(`${nombre}: la hora "hasta" debe ser después de "desde".`); malos.add(i); return; }
-    validos.push({ dia, inicio, fin, nombre: (b.nombre || "").trim() });
+    for (const dia of dias) validos.push({ dia, inicio, fin, nombre: (b.nombre || "").trim() });
   });
   return { validos, errores, malos };
+}
+
+const SEMANA = ["Lun", "Mar", "Mie", "Jue", "Vie"];
+function selectorDias(b, idx) {
+  const caja = el("div", { class: "dias-chips", role: "group", "aria-label": `Días de la hora ocupada ${idx + 1}` });
+  const botones = DIAS.map(d => el("button", {
+    type: "button", title: NOMBRES_DIA[d], "aria-label": NOMBRES_DIA[d],
+    "aria-pressed": (b.dias || []).includes(d) ? "true" : "false",
+    onclick: e => {
+      const activo = e.currentTarget.getAttribute("aria-pressed") === "true";
+      b.dias = activo ? b.dias.filter(x => x !== d) : DIAS.filter(x => x === d || b.dias.includes(x));
+      e.currentTarget.setAttribute("aria-pressed", activo ? "false" : "true");
+      cambio();
+    },
+  }, NOMBRES_DIA[d].slice(0, 3)));
+  const atajo = el("button", {
+    type: "button", class: "atajo", title: "Marcar de lunes a viernes",
+    onclick: () => {
+      b.dias = SEMANA.slice();
+      botones.forEach((bt, k) => bt.setAttribute("aria-pressed", SEMANA.includes(DIAS[k]) ? "true" : "false"));
+      cambio();
+    },
+  }, "Lun a Vie");
+  caja.append(...botones, atajo);
+  return caja;
 }
 
 function pintarBloqueos() {
   const tbody = $("filas-bloqueos");
   tbody.innerHTML = "";
   estado.bloqueos.forEach((b, idx) => {
+    if (!Array.isArray(b.dias)) b.dias = b.dia ? [b.dia] : [];   // horas guardadas antes, con un solo día
+    delete b.dia;
     const campo = (clave, tipo, extra) => el("input", { type: tipo, value: b[clave] || "", ...extra,
       oninput: e => { b[clave] = e.target.value; cambio(); } });
-    const selDia = el("select", { "aria-label": `Día de la hora ocupada ${idx + 1}`, onchange: e => { b.dia = e.target.value; cambio(); } },
-      ...DIAS.map(d => el("option", { value: d }, NOMBRES_DIA[d])));
-    selDia.value = b.dia || "Lun";
     tbody.append(el("tr", { "data-idx": idx },
       el("td", {}, campo("nombre", "text", { placeholder: "Ej.: Trabajo", "aria-label": `Qué es, hora ocupada ${idx + 1}` })),
-      el("td", {}, selDia),
+      el("td", {}, selectorDias(b, idx)),
       el("td", {}, campo("inicio", "time", { step: 300, "aria-label": `Desde, hora ocupada ${idx + 1}` })),
       el("td", {}, campo("fin", "time", { step: 300, "aria-label": `Hasta, hora ocupada ${idx + 1}` })),
       el("td", {}, el("button", { class: "quieto", title: "Quitar", "aria-label": `Quitar hora ocupada ${idx + 1}`,
@@ -1231,7 +1263,7 @@ $("btn-pegado-reemplazar").onclick = () => importarPegado(true);
 
 /* --- Horas ocupadas --- */
 $("btn-bloquear").onclick = () => {
-  estado.bloqueos.push({ nombre: "", dia: "Mar", inicio: "", fin: "" });
+  estado.bloqueos.push({ nombre: "", dias: [], inicio: "", fin: "" });
   pintarBloqueos();
   cambio();
   $("filas-bloqueos").lastElementChild.querySelector("input").focus();

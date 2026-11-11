@@ -28,8 +28,8 @@ Cada horario recibe un **puntaje** (menos es mejor; puede ser negativo):
 **¿Por qué premiar los lunes?** En Colombia casi todos los festivos caen lunes (Ley Emiliani),
 así que las clases del lunes se pierden seguido y el semestre queda más liviano.
 
-**Horas ocupadas.** Si trabajas o tienes algo fijo (por ejemplo, "los martes de 2 a 6"), lo marcas
-como hora ocupada: ningún grupo que se cruce con ella entra en el horario, y si queda entre dos
+**Horas ocupadas.** Si trabajas o tienes algo fijo (por ejemplo, "los martes de 2 a 6" o "de lunes
+a viernes de 6 a 8 a. m."), lo marcas como hora ocupada, para uno o varios días a la vez: ningún grupo que se cruce con ella entra en el horario, y si queda entre dos
 clases **no cuenta como hueco**.
 
 Los pesos se cambian en [`horario/costo.py`](horario/costo.py) (`PESOS`, `HORA_INICIO`, `HORA_FIN`).
@@ -46,7 +46,8 @@ Abre [`index.html`](index.html) con doble clic, o entra a la versión publicada 
   de resaltador por materia. Puedes comparar las mejores opciones e imprimirlo o guardarlo en PDF.
 - **En "Tus materias"** escribes los grupos en la tabla o cargas tu CSV (también acepta el CSV con `;`
   que guarda Excel en español). El horario se recalcula solo con cada cambio.
-- **En "Tus horas ocupadas"** marcas el trabajo, el deporte o lo que no puedas mover.
+- **En "Tus horas ocupadas"** marcas el trabajo, el deporte o lo que no puedas mover. Cada una
+  puede valer para varios días: eliges los días con botones o con el atajo **Lun a Vie**.
 - **En "Cómo se califica"** ajustas las reglas, escritas como frases: cuánto pesan los huecos,
   el rango de horas, el viernes libre y el premio del lunes.
 - **"Pasar este horario a tu calendario"** descarga un archivo `.ics` con las clases de todo el
@@ -84,8 +85,8 @@ python main.py ejemplos/cursos.csv
 # 3. Ver los 5 mejores y guardar la imagen con otro nombre
 python main.py ejemplos/cursos.csv --top 5 --imagen mi_horario.png
 
-# 4. Marcar horas ocupadas (se puede repetir)
-python main.py ejemplos/cursos.csv --bloquear "Mar 14:00-18:00" --bloquear "Jue 14:00-18:00"
+# 4. Marcar horas ocupadas: un día, un rango de días o varios días (se puede repetir)
+python main.py ejemplos/cursos.csv --bloquear "Lun-Vie 06:00-08:00" --bloquear "Mar,Jue 14:00-18:00"
 ```
 
 Salida en la consola:
