@@ -16,7 +16,7 @@ from horario.datos import Sesion
 EJEMPLO = os.path.join(os.path.dirname(__file__), "..", "ejemplos", "cursos.csv")
 
 
-def fuerza_bruta(cursos, bloqueos=()):
+def fuerza_bruta(cursos, bloqueos=(), evitar=()):
     """Prueba TODAS las combinaciones y devuelve el menor costo."""
     mejor = float("inf")
     for combo in itertools.product(*cursos.values()):
@@ -28,7 +28,7 @@ def fuerza_bruta(cursos, bloqueos=()):
                 break
             elegidos.append(g)
         if valido:
-            mejor = min(mejor, costo(elegidos, bloqueos))
+            mejor = min(mejor, costo(elegidos, bloqueos, evitar))
     return mejor
 
 
@@ -86,6 +86,28 @@ def test_leer_horas_ocupadas_por_rangos():
             pass
 
 
+def test_evitar_profesores():
+    from horario.costo import tiene_profe_evitado, detalle_costo, PESOS
+    from horario.datos import Grupo
+    g = Grupo("X", "A", [Sesion("Mar", 600, 720)], profesor="Carlos Rojas")
+    assert tiene_profe_evitado(g, ["rojas"])            # parte del nombre, sin mayúsculas
+    assert tiene_profe_evitado(g, ["  CARLOS  rojas "])
+    assert not tiene_profe_evitado(g, ["Pérez"])
+    assert not tiene_profe_evitado(Grupo("X", "B", []), ["Rojas"])   # sin profesor
+    assert tiene_profe_evitado(Grupo("X", "C", [], profesor="Andrés Pérez"), ["perez"])  # sin tildes
+    d = detalle_costo([g], evitar=["Rojas"])
+    assert d["profes_evitados"] == 1
+    assert abs(d["total"] - detalle_costo([g])["total"] - PESOS["profesor"]) < 1e-9
+    # En el ejemplo, evitando a Pérez y a Smith se escogen otros grupos
+    cursos = leer_cursos(EJEMPLO)
+    mejores, _ = buscar(cursos, top=1, evitar=["Perez", "Smith"])
+    assert all(g.profesor not in ("Perez", "Smith") for g in mejores[0][1])
+    # Si el único grupo de una materia es con ese profesor, la materia se queda (con penalización)
+    solo = {"Etica": [Grupo("Etica", "A", [Sesion("Mar", 720, 840)], profesor="Mora")]}
+    mejores, _ = buscar(solo, top=1, evitar=["Mora"])
+    assert mejores and mejores[0][1][0].profesor == "Mora"
+
+
 def test_viernes_y_lunes():
     from horario.datos import Grupo
     from horario.costo import detalle_costo, PESOS
@@ -117,14 +139,15 @@ def test_poda_con_muchos_casos_aleatorios():
                     # un grupo real no tiene dos clases que se pisen entre sí
                     if not any(se_cruzan(nueva, s) for s in sesiones):
                         sesiones.append(nueva)
-                grupos.append(Grupo(f"M{m}", f"G{g}", sesiones))
+                grupos.append(Grupo(f"M{m}", f"G{g}", sesiones, profesor=rnd.choice(["Rojas", "Pérez", "Díaz", ""])))
             cursos[f"M{m}"] = grupos
         bloqueos = []
         for _ in range(rnd.choice([0, 0, 1, 2])):
             ini = rnd.randint(7, 18) * 60
             bloqueos.append(Sesion(rnd.choice(DIAS[:5]), ini, ini + rnd.choice([60, 120, 240])))
-        mejores, _ = buscar(cursos, top=1, bloqueos=bloqueos)
-        esperado = fuerza_bruta(cursos, bloqueos)
+        evitar = rnd.choice([[], [], ["Rojas"], ["perez", "Díaz"]])
+        mejores, _ = buscar(cursos, top=1, bloqueos=bloqueos, evitar=evitar)
+        esperado = fuerza_bruta(cursos, bloqueos, evitar)
         if esperado == float("inf"):
             assert not mejores
         else:
@@ -137,6 +160,7 @@ if __name__ == "__main__":
     test_horas_ocupadas_no_son_hueco()
     test_bloqueos_quitan_grupos()
     test_leer_horas_ocupadas_por_rangos()
+    test_evitar_profesores()
     test_viernes_y_lunes()
     test_poda_con_muchos_casos_aleatorios()
     print("Todas las pruebas pasaron.")

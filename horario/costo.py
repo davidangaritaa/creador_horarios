@@ -6,6 +6,7 @@ Penalizaciones (se pueden cambiar en PESOS):
   - Cada hora de clase después de las 18:00 (por ejemplo, de 18:00 a 20:00).
   - Cada día que hay que ir a la universidad (para juntar clases).
   - Ir el viernes (se premia tener el viernes libre).
+  - Cada materia que te toque con un profesor que quieres evitar.
 
 Premio (resta puntos):
   - Cada hora de clase el lunes. En Colombia casi todos los festivos caen
@@ -17,7 +18,24 @@ Horas ocupadas (bloqueos, por ejemplo "los martes trabajo de 2 a 6"):
   - El tiempo ocupado entre dos clases NO cuenta como hueco.
 """
 
+import unicodedata
+
 from .datos import DIAS
+
+
+def sin_tildes(texto: str) -> str:
+    t = unicodedata.normalize("NFD", (texto or "").strip().lower())
+    return " ".join("".join(c for c in t if unicodedata.category(c) != "Mn").split())
+
+
+def tiene_profe_evitado(grupo, evitar) -> bool:
+    """True si el profesor del grupo es uno de los que quieres evitar.
+
+    Compara sin tildes ni mayúsculas, y vale con parte del nombre:
+    evitar "Rojas" encuentra a "Carlos Rojas".
+    """
+    profe = sin_tildes(grupo.profesor)
+    return bool(profe) and any(e and e in profe for e in (sin_tildes(x) for x in evitar))
 
 PESOS = {
     "hueco": 1.0,       # por hora de hueco
@@ -26,6 +44,7 @@ PESOS = {
     "dia": 0.5,         # por cada día con clase
     "viernes": 1.5,     # extra si hay que ir el viernes
     "lunes": 0.5,       # PREMIO por hora de clase el lunes (se resta)
+    "profesor": 5.0,    # por cada materia con un profesor que quieres evitar
 }
 HORA_INICIO = 8 * 60    # 8:00
 HORA_FIN = 18 * 60      # 18:00 (6 p. m.)
@@ -81,7 +100,7 @@ def horas_de_hueco(sesiones_del_dia, bloqueos_del_dia=()):
     return (ultima - primera - ocupado) / 60
 
 
-def detalle_costo(grupos, bloqueos=()):
+def detalle_costo(grupos, bloqueos=(), evitar=()):
     """Devuelve un diccionario con cada parte del costo y el total."""
     por_dia = {d: [] for d in DIAS}
     temprano = tarde = 0.0
@@ -97,12 +116,15 @@ def detalle_costo(grupos, bloqueos=()):
     dias = sum(1 for ses in por_dia.values() if ses)
     viernes = 1 if por_dia["Vie"] else 0
     horas_lunes = sum(s.fin - s.inicio for s in por_dia["Lun"]) / 60
+    con_evitados = [g for g in grupos if tiene_profe_evitado(g, evitar)]
 
     total = (PESOS["hueco"] * huecos + PESOS["temprano"] * temprano
              + PESOS["tarde"] * tarde + PESOS["dia"] * dias
-             + PESOS["viernes"] * viernes - PESOS["lunes"] * horas_lunes)
+             + PESOS["viernes"] * viernes - PESOS["lunes"] * horas_lunes
+             + PESOS["profesor"] * len(con_evitados))
     return {"huecos": huecos, "temprano": temprano, "tarde": tarde,
             "dias": dias, "viernes": viernes, "horas_lunes": horas_lunes,
+            "profes_evitados": len(con_evitados), "con_evitados": con_evitados,
             "total": total}
 
 
@@ -111,11 +133,11 @@ def horas_lunes(grupo) -> float:
     return sum(s.fin - s.inicio for s in grupo.sesiones if s.dia == "Lun") / 60
 
 
-def costo(grupos, bloqueos=()) -> float:
-    return detalle_costo(grupos, bloqueos)["total"]
+def costo(grupos, bloqueos=(), evitar=()) -> float:
+    return detalle_costo(grupos, bloqueos, evitar)["total"]
 
 
-def cota_inferior(grupos, lunes_pendiente=0.0):
+def cota_inferior(grupos, lunes_pendiente=0.0, evitar=()):
     """Lo MÍNIMO que costará un horario que empieza con estos grupos.
 
     Ojo: los huecos NO entran en la cota, porque una clase nueva puede
@@ -127,8 +149,11 @@ def cota_inferior(grupos, lunes_pendiente=0.0):
     se resta de una vez el máximo premio que aún se podría ganar
     (lunes_pendiente = horas de lunes que como mucho darían las materias
     que faltan). Así la cota sigue siendo optimista y la poda es segura.
+
+    Los profesores evitados también solo suman al agregar materias, así que entran.
     """
-    d = detalle_costo(grupos)
+    d = detalle_costo(grupos, evitar=evitar)
     return (PESOS["temprano"] * d["temprano"] + PESOS["tarde"] * d["tarde"]
             + PESOS["dia"] * d["dias"] + PESOS["viernes"] * d["viernes"]
-            - PESOS["lunes"] * (d["horas_lunes"] + lunes_pendiente))
+            - PESOS["lunes"] * (d["horas_lunes"] + lunes_pendiente)
+            + PESOS["profesor"] * d["profes_evitados"])

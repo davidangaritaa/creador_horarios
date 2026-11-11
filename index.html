@@ -167,6 +167,13 @@
   .dias-chips button { padding: 4px 8px; font-size: .82rem; border-radius: 7px; min-width: 40px; }
   .dias-chips button[aria-pressed=true] { background: var(--tinta); border-color: var(--tinta); color: var(--papel); }
   .dias-chips button.atajo { min-width: 0; border-style: dashed; color: var(--tinta-suave); background: transparent; margin-left: 4px; }
+  .profes-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .profes-chips button { font-weight: 600; }
+  .profes-chips button[aria-pressed=true] {
+    background: color-mix(in srgb, var(--margen) 12%, var(--hoja)); border-color: var(--margen);
+    color: var(--margen); text-decoration: line-through; text-decoration-thickness: 2px;
+  }
+  .escogidos .evitado { color: var(--margen); font-weight: 600; }
 
   /* Grupos escogidos */
   .escogidos { list-style: none; margin: 18px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 28px; }
@@ -367,6 +374,13 @@
         <ul class="errores" id="errores-bloqueos"></ul>
       </section>
 
+      <section aria-labelledby="t-profes">
+        <h2 id="t-profes">Profesores que prefieres evitar</h2>
+        <p class="ayuda">Toca un profesor para evitarlo. Se prefieren los grupos con otro profesor; si una materia solo tiene grupos con él, se queda y te avisamos.</p>
+        <div class="profes-chips" id="profes" role="group" aria-label="Profesores"></div>
+        <p class="ayuda" id="sin-profes" style="margin:0">Cuando escribas el profesor de cada grupo en la tabla, aparece aquí.</p>
+      </section>
+
       <aside aria-labelledby="t-reglas">
         <h2 id="t-reglas">Cómo se califica</h2>
         <p class="ayuda">Gana el horario con menos puntos. Pon 0 para ignorar una regla.</p>
@@ -389,7 +403,17 @@
 const DIAS = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab"];
 const NOMBRES_DIA = { Lun: "Lunes", Mar: "Martes", Mie: "Miércoles", Jue: "Jueves", Vie: "Viernes", Sab: "Sábado" };
 
-const PESOS_INICIALES = { hueco: 1.0, temprano: 2.0, tarde: 2.0, dia: 0.5, viernes: 1.5, lunes: 0.5 };
+const PESOS_INICIALES = { hueco: 1.0, temprano: 2.0, tarde: 2.0, dia: 0.5, viernes: 1.5, lunes: 0.5, profesor: 5.0 };
+
+/* "  Andrés  PÉREZ " -> "andres perez" */
+function sinTildes(texto) {
+  return String(texto || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim().split(/\s+/).join(" ");
+}
+/* ¿El profesor del grupo es uno de los que quieres evitar? Vale con parte del nombre. */
+function tieneProfeEvitado(grupo, evitar) {
+  const profe = sinTildes(grupo.profesor);
+  return !!profe && (evitar || []).some(e => { e = sinTildes(e); return !!e && profe.includes(e); });
+}
 
 function aMinutos(hora) {
   const m = String(hora || "").trim().match(/^(\d{1,2}):(\d{2})/);
@@ -457,10 +481,12 @@ function detalleCosto(grupos, cfg) {
   }
   const viernes = porDia.Vie.length ? 1 : 0;
   const horasLunes = porDia.Lun.reduce((a, s) => a + s.fin - s.inicio, 0) / 60;
+  const conEvitados = grupos.filter(g => tieneProfeEvitado(g, cfg.evitar));
   const P = cfg.pesos;
   const total = P.hueco * huecos + P.temprano * temprano + P.tarde * tarde
-              + P.dia * dias + P.viernes * viernes - P.lunes * horasLunes;
-  return { huecos, temprano, tarde, dias, viernes, horasLunes, total };
+              + P.dia * dias + P.viernes * viernes - P.lunes * horasLunes
+              + (P.profesor || 0) * conEvitados.length;
+  return { huecos, temprano, tarde, dias, viernes, horasLunes, profesEvitados: conEvitados.length, conEvitados, total };
 }
 
 function horasLunesGrupo(g) {
@@ -472,7 +498,8 @@ function horasLunesGrupo(g) {
 function cotaInferior(grupos, lunesPendiente, cfg) {
   const d = detalleCosto(grupos, cfg), P = cfg.pesos;
   return P.temprano * d.temprano + P.tarde * d.tarde + P.dia * d.dias
-       + P.viernes * d.viernes - P.lunes * (d.horasLunes + lunesPendiente);
+       + P.viernes * d.viernes - P.lunes * (d.horasLunes + lunesPendiente)
+       + (P.profesor || 0) * d.profesEvitados;
 }
 
 const LIMITE_NODOS = 3000000;
@@ -791,6 +818,7 @@ let estado = {
   top: 5,
   bloqueos: [],        // horas ocupadas: { nombre, dia, inicio, fin }
   semestre: null,      // { inicio, fin, festivos, alarma } para el calendario
+  evitar: [],          // profesores que prefieres evitar
 };
 let resultado = null, seleccion = 0;
 
@@ -892,6 +920,8 @@ function pintarPrefs() {
       "Premia tener el viernes libre."),
     regla("premio", ["Cada hora de clase el lunes resta", num("lunes", "Puntos que resta cada hora del lunes"), "puntos"],
       "En Colombia casi todos los festivos caen lunes, así que esas clases se pierden seguido."),
+    regla("", ["Cada materia con un profesor que evitas suma", num("profesor", "Puntos por materia con un profesor que evitas"), "puntos"],
+      "Ponle 100 si no lo quieres por nada del mundo."),
     regla("", ["Mostrar las", el("input", {
       type: "number", min: 1, max: 20, step: 1, value: estado.top, "aria-label": "Cantidad de opciones",
       oninput: e => { estado.top = Math.min(20, Math.max(1, parseInt(e.target.value) || 1)); cambio(); },
@@ -914,7 +944,36 @@ function configuracion() {
     horaFin: isNaN(aMinutos(estado.horaFin)) ? 1080 : aMinutos(estado.horaFin),
     top: estado.top,
     bloqueos: revisarBloqueos().validos,
+    evitar: estado.evitar,
   };
+}
+
+/* Botones con los profesores de la tabla; tocar uno lo marca para evitarlo */
+function pintarProfes() {
+  const cont = $("profes");
+  const vistos = new Map();
+  for (const f of estado.filas) {
+    const nombre = (f.profesor || "").trim();
+    if (nombre && !vistos.has(sinTildes(nombre))) vistos.set(sinTildes(nombre), nombre);
+  }
+  const nombres = [...vistos.values()].sort((a, b) => a.localeCompare(b, "es"));
+  const evitado = n => estado.evitar.some(e => sinTildes(e) === sinTildes(n));
+  const firma = JSON.stringify([nombres, nombres.map(evitado)]);
+  if (cont.dataset.firma === firma) return;          // nada cambió: no se repinta (no se pierde el foco)
+  cont.dataset.firma = firma;
+  cont.innerHTML = "";
+  for (const n of nombres) {
+    cont.append(el("button", {
+      type: "button", "aria-pressed": evitado(n) ? "true" : "false",
+      title: evitado(n) ? `Dejar de evitar a ${n}` : `Evitar a ${n}`,
+      onclick: () => {
+        estado.evitar = evitado(n) ? estado.evitar.filter(e => sinTildes(e) !== sinTildes(n)) : estado.evitar.concat(n);
+        pintarProfes();
+        cambio();
+      },
+    }, n));
+  }
+  $("sin-profes").style.display = nombres.length ? "none" : "";
 }
 
 /* Horas ocupadas: separa las que están bien escritas de las que tienen errores */
@@ -996,6 +1055,7 @@ function calcular() {
     if (m) m.style.background = color(estado.filas[idx] && estado.filas[idx].materia) || "";
   });
 
+  pintarProfes();
   const revision = revisarBloqueos();
   const listaB = $("errores-bloqueos");
   listaB.innerHTML = "";
@@ -1077,6 +1137,11 @@ function escribirTitular(d, sesiones, i) {
   partes.push(d.horasLunes ? `${fmtH(d.horasLunes)} de clase los lunes, que suelen ser festivo` : "ninguna clase los lunes");
   const fuera = d.temprano + d.tarde;
   partes.push(fuera ? `${fmtH(fuera)} fuera de tu rango de horas` : "todo dentro de tu rango de horas");
+  if (resultado.cfg.evitar && resultado.cfg.evitar.length) {
+    partes.push(d.conEvitados.length
+      ? `te toca con ${enLista(d.conEvitados.map(g => `${g.profesor} en ${g.materia}`))}, que querías evitar`
+      : "ninguna materia con los profesores que evitas");
+  }
 
   const p = $("resumen");
   p.innerHTML = "";
@@ -1127,7 +1192,8 @@ function pintarResultado() {
       el("i", { class: "muestra", style: { background: color(g.materia) }, "aria-hidden": "true" }),
       el("div", {},
         el("b", {}, `${g.materia}, grupo ${g.nombre}`),
-        g.profesor ? el("span", {}, `Con ${g.profesor}`) : null,
+        g.profesor ? el("span", {}, `Con ${g.profesor}`,
+          tieneProfeEvitado(g, cfg.evitar) ? el("span", { class: "evitado", style: { display: "inline" } }, " (lo querías evitar)") : null) : null,
         el("span", {}, enLista(clases) + "."))));
   });
 }
@@ -1352,6 +1418,7 @@ cargarEstado();
 if (!Array.isArray(estado.bloqueos)) estado.bloqueos = [];
 prepararCalendario();
 pintarFilas();
+if (!Array.isArray(estado.evitar)) estado.evitar = [];
 pintarBloqueos();
 pintarPrefs();
 calcular();

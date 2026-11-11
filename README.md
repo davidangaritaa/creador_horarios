@@ -24,9 +24,14 @@ Cada horario recibe un **puntaje** (menos es mejor; puede ser negativo):
 | Cada **día** que hay que ir a la universidad | +0,5 |
 | Tener que ir el **viernes** (se premia el viernes libre) | +1,5 |
 | Cada hora de clase el **lunes** 🎉 | −0,5 |
+| Cada materia con un **profesor que quieres evitar** | +5 |
 
 **¿Por qué premiar los lunes?** En Colombia casi todos los festivos caen lunes (Ley Emiliani),
 así que las clases del lunes se pierden seguido y el semestre queda más liviano.
+
+**Profesores que prefieres evitar.** Se prefieren los grupos con otro profesor. Si una materia
+solo tiene grupos con él, la materia se queda y te avisa (si no lo quieres por nada del mundo,
+sube los puntos a 100).
 
 **Horas ocupadas.** Si trabajas o tienes algo fijo (por ejemplo, "los martes de 2 a 6" o "de lunes
 a viernes de 6 a 8 a. m."), lo marcas como hora ocupada, para uno o varios días a la vez: ningún grupo que se cruce con ella entra en el horario, y si queda entre dos
@@ -48,6 +53,8 @@ Abre [`index.html`](index.html) con doble clic, o entra a la versión publicada 
   que guarda Excel en español). El horario se recalcula solo con cada cambio.
 - **En "Tus horas ocupadas"** marcas el trabajo, el deporte o lo que no puedas mover. Cada una
   puede valer para varios días: eliges los días con botones o con el atajo **Lun a Vie**.
+- **En "Profesores que prefieres evitar"** aparecen los profesores de tu tabla: tocas los que no
+  quieres y quedan tachados.
 - **En "Cómo se califica"** ajustas las reglas, escritas como frases: cuánto pesan los huecos,
   el rango de horas, el viernes libre y el premio del lunes.
 - **"Pasar este horario a tu calendario"** descarga un archivo `.ics` con las clases de todo el
@@ -87,6 +94,9 @@ python main.py ejemplos/cursos.csv --top 5 --imagen mi_horario.png
 
 # 4. Marcar horas ocupadas: un día, un rango de días o varios días (se puede repetir)
 python main.py ejemplos/cursos.csv --bloquear "Lun-Vie 06:00-08:00" --bloquear "Mar,Jue 14:00-18:00"
+
+# 5. Evitar profesores (basta con parte del nombre, sin importar tildes)
+python main.py ejemplos/cursos.csv --evitar "Rojas" --evitar "perez"
 ```
 
 Salida en la consola:
@@ -188,7 +198,8 @@ python tests/test_web.py        # la página web da lo mismo que Python (necesit
 - [ ] Hacerlo en un solo clic (subir la foto directo a la página, con un servidor que llame a la API).
 - [x] Bloquear horas (por ejemplo, "los martes trabajo de 2 a 6").
 - [x] Exportar el horario al calendario (`.ics`), sin los festivos de Colombia.
-- [ ] Preferir o evitar profesores.
+- [x] Evitar profesores.
+- [ ] Preferir profesores o fijar un grupo ("quiero sí o sí Cálculo con Gómez").
 
 ## Origen
 

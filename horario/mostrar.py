@@ -9,7 +9,7 @@ def dias_usados(grupos):
     return [d for d in DIAS if d in usados or d != "Sab"]
 
 
-def imprimir(grupos, titulo="Horario", bloqueos=()):
+def imprimir(grupos, titulo="Horario", bloqueos=(), evitar=()):
     """Tabla por horas (filas) y días (columnas). Las horas ocupadas salen como (ocupado)."""
     dias = dias_usados(grupos)
     inicio = min(s.inicio for g in grupos for s in g.sesiones) // 60 * 60
@@ -32,14 +32,20 @@ def imprimir(grupos, titulo="Horario", bloqueos=()):
             fila += f"{texto:<{ancho}}"
         print(fila)
 
-    d = detalle_costo(grupos, bloqueos)
+    d = detalle_costo(grupos, bloqueos, evitar)
     print(f"Huecos: {d['huecos']:.1f} h | Antes de las 8: {d['temprano']:.1f} h | "
           f"Después de las 6 p. m.: {d['tarde']:.1f} h | Días: {d['dias']} | "
           f"Lunes: {d['horas_lunes']:.1f} h | Viernes: {'sí' if d['viernes'] else 'libre'} | "
           f"Puntaje: {d['total']:.2f}")
+    if evitar:
+        if d["con_evitados"]:
+            print("Con profesores que querías evitar: " +
+                  ", ".join(f"{g.materia} ({g.profesor})" for g in d["con_evitados"]))
+        else:
+            print("Ninguna materia con los profesores que querías evitar.")
 
 
-def guardar_imagen(grupos, ruta, titulo="Mi horario", bloqueos=()):
+def guardar_imagen(grupos, ruta, titulo="Mi horario", bloqueos=(), evitar=()):
     """Dibuja el horario como un calendario semanal y lo guarda en PNG."""
     import matplotlib
     matplotlib.use("Agg")
@@ -102,7 +108,7 @@ def guardar_imagen(grupos, ruta, titulo="Mi horario", bloqueos=()):
     for lado in ax.spines.values():
         lado.set_visible(False)
 
-    d = detalle_costo(grupos, bloqueos)
+    d = detalle_costo(grupos, bloqueos, evitar)
     ax.set_title(f"{titulo} — huecos: {d['huecos']:.1f} h · días: {d['dias']} · "
                  f"puntaje: {d['total']:.2f}", pad=28, fontsize=11)
     fig.tight_layout()

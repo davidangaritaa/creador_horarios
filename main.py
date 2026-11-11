@@ -4,6 +4,7 @@ Uso:
     python main.py ejemplos/cursos.csv
     python main.py ejemplos/cursos.csv --top 5 --imagen mi_horario.png
     python main.py ejemplos/cursos.csv --bloquear "Mar 14:00-18:00" --bloquear "Lun-Vie 06:00-07:00"
+    python main.py ejemplos/cursos.csv --evitar "Rojas" --evitar "Ortiz"
 """
 
 import argparse
@@ -11,6 +12,7 @@ import time
 
 from horario.datos import leer_cursos, leer_bloqueos, a_hora
 from horario.buscador import buscar, total_combinaciones, quitar_bloqueados
+from horario.costo import tiene_profe_evitado
 from horario.mostrar import imprimir, guardar_imagen
 
 
@@ -22,6 +24,8 @@ def main():
     parser.add_argument("--bloquear", action="append", default=[], metavar='"Lun-Vie 14:00-18:00"',
                         help='hora ocupada (trabajo, deporte...): un día ("Mar"), un rango ("Lun-Vie") '
                              'o varios ("Lun,Mie"); se puede repetir')
+    parser.add_argument("--evitar", action="append", default=[], metavar='"Rojas"',
+                        help="profesor que prefieres evitar (basta con parte del nombre); se puede repetir")
     args = parser.parse_args()
 
     try:
@@ -34,6 +38,11 @@ def main():
     for materia, grupos in cursos.items():
         print(f"  - {materia}: {len(grupos)} grupo(s)")
     print(f"Combinaciones posibles: {total_combinaciones(cursos)}")
+    for nombre in args.evitar:
+        if not any(tiene_profe_evitado(g, [nombre]) for gs in cursos.values() for g in gs):
+            print(f"Aviso: ningún grupo tiene un profesor llamado '{nombre}'.")
+    if args.evitar:
+        print("Profesores a evitar: " + ", ".join(args.evitar))
     if bloqueos:
         print("Horas ocupadas: " + ", ".join(f"{b.dia} {a_hora(b.inicio)}-{a_hora(b.fin)}" for b in bloqueos))
         _, sin_grupo = quitar_bloqueados(cursos, bloqueos)
@@ -47,7 +56,7 @@ def main():
             print(f"Este es el mejor horario con las otras {len(cursos)} materias.")
 
     t0 = time.perf_counter()
-    mejores, nodos = buscar(cursos, top=args.top, bloqueos=bloqueos)
+    mejores, nodos = buscar(cursos, top=args.top, bloqueos=bloqueos, evitar=args.evitar)
     t = time.perf_counter() - t0
 
     if not mejores:
@@ -56,9 +65,9 @@ def main():
 
     print(f"Nodos revisados: {nodos} | tiempo: {t * 1000:.1f} ms")
     for i, (c, grupos) in enumerate(mejores, start=1):
-        imprimir(grupos, titulo=f"Opción {i} (puntaje {c:.2f})", bloqueos=bloqueos)
+        imprimir(grupos, titulo=f"Opción {i} (puntaje {c:.2f})", bloqueos=bloqueos, evitar=args.evitar)
 
-    guardar_imagen(mejores[0][1], args.imagen, titulo="Mejor horario", bloqueos=bloqueos)
+    guardar_imagen(mejores[0][1], args.imagen, titulo="Mejor horario", bloqueos=bloqueos, evitar=args.evitar)
     print(f"\nImagen del mejor horario guardada en: {args.imagen}")
 
 

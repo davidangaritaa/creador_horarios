@@ -24,7 +24,7 @@ def quitar_bloqueados(cursos: dict, bloqueos=()):
     return quedan, sin_grupo
 
 
-def buscar(cursos: dict, top: int = 3, bloqueos=()):
+def buscar(cursos: dict, top: int = 3, bloqueos=(), evitar=()):
     """Devuelve (lista de los mejores horarios, nodos revisados).
 
     Cada horario es una tupla (costo, [Grupo, Grupo, ...]).
@@ -54,7 +54,7 @@ def buscar(cursos: dict, top: int = 3, bloqueos=()):
         nodos += 1
 
         if i == len(materias):                      # horario completo
-            c = costo(elegidos, bloqueos)
+            c = costo(elegidos, bloqueos, evitar)
             if c < peor_aceptado():
                 mejores.append((c, list(elegidos)))
                 mejores.sort(key=lambda x: x[0])
@@ -65,7 +65,7 @@ def buscar(cursos: dict, top: int = 3, bloqueos=()):
             if grupo_choca(grupo, elegidos):        # regla dura: sin cruces
                 continue
             elegidos.append(grupo)
-            if cota_inferior(elegidos, lunes_pendiente[i + 1]) < peor_aceptado():   # poda
+            if cota_inferior(elegidos, lunes_pendiente[i + 1], evitar) < peor_aceptado():   # poda
                 recorrer(i + 1, elegidos)
             elegidos.pop()                          # backtracking: se devuelve
 

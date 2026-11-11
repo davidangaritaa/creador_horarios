@@ -43,14 +43,15 @@ def correr_js(programa: str, datos) -> object:
 
 
 def a_json(cursos):
-    return {m: [{"materia": g.materia, "nombre": g.nombre,
+    return {m: [{"materia": g.materia, "nombre": g.nombre, "profesor": g.profesor,
                  "sesiones": [{"dia": s.dia, "inicio": s.inicio, "fin": s.fin} for s in g.sesiones]}
                 for g in gs] for m, gs in cursos.items()}
 
 
 def casos_al_azar(n=300, semilla=7):
     rnd = random.Random(semilla)
-    casos = [(leer_cursos(os.path.join(RAIZ, "ejemplos", "cursos.csv")), [])]
+    casos = [(leer_cursos(os.path.join(RAIZ, "ejemplos", "cursos.csv")), [], []),
+             (leer_cursos(os.path.join(RAIZ, "ejemplos", "cursos.csv")), [], ["Pérez", "smith"])]
     for _ in range(n):
         cursos = {}
         for mi in range(rnd.randint(2, 6)):
@@ -62,13 +63,13 @@ def casos_al_azar(n=300, semilla=7):
                     s = Sesion(rnd.choice(DIAS), ini, ini + rnd.choice([60, 90, 120, 180]))
                     if not any(se_cruzan(s, o) for o in ses):
                         ses.append(s)
-                gs.append(Grupo(f"M{mi}", f"G{gi}", ses))
+                gs.append(Grupo(f"M{mi}", f"G{gi}", ses, profesor=rnd.choice(["Carlos Rojas", "Andrés Pérez", "Díaz", ""])))
             cursos[f"M{mi}"] = gs
         bloqueos = []
         for _ in range(rnd.choice([0, 0, 1, 2, 3])):
             ini = rnd.randint(7, 18) * 60 + rnd.choice([0, 30])
             bloqueos.append(Sesion(rnd.choice(DIAS[:5]), ini, ini + rnd.choice([60, 120, 240])))
-        casos.append((cursos, bloqueos))
+        casos.append((cursos, bloqueos, rnd.choice([[], [], ["rojas"], ["PEREZ", "Díaz"]])))
     return casos
 
 
@@ -77,16 +78,17 @@ def test_web_da_lo_mismo_que_python():
         print("  (se salta: Node.js no está instalado)")
         return
     datos, esperado = [], []
-    for cursos, bloqueos in casos_al_azar():
-        mejores, _ = buscar(cursos, top=5, bloqueos=bloqueos)
+    for cursos, bloqueos, evitar in casos_al_azar():
+        mejores, _ = buscar(cursos, top=5, bloqueos=bloqueos, evitar=evitar)
         esperado.append([c for c, _ in mejores])
         datos.append({"cursos": a_json(cursos),
-                      "bloqueos": [{"dia": b.dia, "inicio": b.inicio, "fin": b.fin} for b in bloqueos]})
+                      "bloqueos": [{"dia": b.dia, "inicio": b.inicio, "fin": b.fin} for b in bloqueos],
+                      "evitar": evitar})
     pesos = dict(costo_py.PESOS)
     obtenido = correr_js(f"""
       const pesos = {json.dumps(pesos)};
       const salida = DATOS.map(c => buscar(c.cursos, {{
-        pesos, horaInicio: {costo_py.HORA_INICIO}, horaFin: {costo_py.HORA_FIN}, top: 5, bloqueos: c.bloqueos,
+        pesos, horaInicio: {costo_py.HORA_INICIO}, horaFin: {costo_py.HORA_FIN}, top: 5, bloqueos: c.bloqueos, evitar: c.evitar,
       }}).mejores.map(x => x.costo));
       console.log(JSON.stringify(salida));
     """, datos)
