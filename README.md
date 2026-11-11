@@ -2,8 +2,11 @@
 
 Arma automáticamente el **mejor horario del semestre** a partir de los grupos disponibles de cada materia:
 **sin cruces**, con las clases **seguidas (sin huecos)** y, de preferencia, **entre las 8:00 a. m. y las 6:00 p. m.**
+Además premia tener el **viernes libre** y las clases de los **lunes**, que en Colombia suelen ser festivo.
 
-![Ejemplo de horario generado](docs/ejemplo.png)
+**Úsalo en el navegador, sin instalar nada:** https://davidangaritaa.github.io/creador-horarios/
+
+![La versión web: el mejor horario dibujado en un cuaderno cuadriculado](docs/web.png)
 
 ## ¿Qué hace?
 
@@ -34,17 +37,34 @@ Los pesos se cambian en [`horario/costo.py`](horario/costo.py) (`PESOS`, `HORA_I
 Abre [`index.html`](index.html) con doble clic, o entra a la versión publicada en
 **https://davidangaritaa.github.io/creador-horarios/**.
 
-- Escribe las materias en la tabla o carga tu CSV (también acepta el CSV con `;` que guarda Excel en español).
-- **¿Tienes capturas del portal?** Copia las instrucciones de la página, pégalas en una IA que acepte imágenes
-  (Claude, ChatGPT, Gemini…) junto con tus capturas y pega la respuesta en la página: las clases se agregan solas a la tabla.
-- Ajusta las preferencias (huecos, viernes libre, premio del lunes, rango de horas).
-- El mejor horario se dibuja al instante; puedes comparar varias opciones e imprimirlo o guardarlo en PDF.
+- **Arriba ves el resultado**: un titular que describe el mejor horario (por ejemplo, *"Clases lunes,
+  martes y miércoles. Viernes libre."*) y el horario dibujado en un cuaderno cuadriculado, con un color
+  de resaltador por materia. Puedes comparar las mejores opciones e imprimirlo o guardarlo en PDF.
+- **En "Tus materias"** escribes los grupos en la tabla o cargas tu CSV (también acepta el CSV con `;`
+  que guarda Excel en español). El horario se recalcula solo con cada cambio.
+- **En "Cómo se califica"** ajustas las reglas, escritas como frases: cuánto pesan los huecos,
+  el rango de horas, el viernes libre y el premio del lunes.
 
-Todo se calcula en tu navegador: los datos no se envían a ningún lado.
+Todo se calcula en tu navegador: los datos no se envían a ningún lado, y la página recuerda tus
+materias si la cierras.
+
+#### Pasar capturas del portal con una IA
+
+Si tienes capturas de la oferta de grupos, no tienes que escribirlas a mano:
+
+1. En la página, abre **"¿Tienes capturas del portal?"** y copia las instrucciones.
+2. Pégalas en una IA que acepte imágenes (Claude, ChatGPT, Gemini…) junto con tus capturas.
+3. Copia la respuesta, pégala en la página y elige **Agregar a mi tabla** o **Reemplazar mi tabla**.
+
+Para probarlo, en [`ejemplos/`](ejemplos) hay tres capturas de muestra, una por materia y con tres
+grupos cada una: un portal en computador ([`foto-calculo-iii.png`](ejemplos/foto-calculo-iii.png)),
+una pantalla de celular ([`foto-redes.png`](ejemplos/foto-redes.png)) y una foto inclinada y con
+reflejo tomada a un monitor ([`foto-bases-de-datos.png`](ejemplos/foto-bases-de-datos.png)).
 
 ### En la consola (Python)
 
-Necesitas **Python 3.9 o más reciente**.
+Necesitas **Python 3.9 o más reciente**. En Windows, si `python` abre la Microsoft Store,
+usa `py` en su lugar (por ejemplo, `py main.py ejemplos/cursos.csv`).
 
 ```bash
 # 1. Instalar la librería para dibujar el horario
@@ -73,6 +93,10 @@ Hora   Lun             Mar             Mie             Jue             Vie
 ...
 Huecos: 1.0 h | Antes de las 8: 0.0 h | Después de las 6 p. m.: 0.0 h | Días: 3 | Lunes: 8.0 h | Viernes: libre | Puntaje: -1.50
 ```
+
+Además guarda el mejor horario como imagen:
+
+![Imagen generada por la versión de Python](docs/ejemplo.png)
 
 ## Formato de los cursos (CSV)
 
@@ -114,16 +138,18 @@ Sin poda habría que revisar el producto de los grupos de todas las materias
 
 ```
 creador-horarios/
-├── index.html           # versión web (mismo algoritmo en JavaScript)
+├── index.html           # versión web (mismo algoritmo en JavaScript, en un solo archivo)
 ├── main.py              # punto de entrada (línea de comandos)
 ├── horario/
 │   ├── datos.py         # lee el CSV
-│   ├── costo.py         # puntaje: huecos, horas fuera de rango, días
+│   ├── costo.py         # puntaje: huecos, horas fuera de rango, días, viernes y lunes
 │   ├── buscador.py      # backtracking con poda
 │   └── mostrar.py       # tabla en consola e imagen PNG
-├── ejemplos/cursos.csv  # datos de ejemplo
+├── ejemplos/
+│   ├── cursos.csv       # datos de ejemplo
+│   └── foto-*.png       # capturas de muestra para probar la lectura con IA
 ├── tests/               # pruebas (la poda da lo mismo que la fuerza bruta)
-└── docs/ejemplo.png
+└── docs/                # imágenes del README
 ```
 
 ## Pruebas
@@ -136,11 +162,11 @@ Comprueban que la búsqueda con poda encuentra el mismo óptimo que probar todas
 
 ## Próximas ideas
 
+- [x] Interfaz web que no necesita instalar nada.
 - [x] Pasar **capturas de pantalla** a la tabla (con cualquier IA, copiando y pegando).
 - [ ] Hacerlo en un solo clic (subir la foto directo a la página, con un servidor que llame a la API).
 - [ ] Bloquear horas (por ejemplo, "los martes trabajo de 2 a 6").
 - [ ] Preferir o evitar profesores.
-- [x] Interfaz web.
 
 ## Origen
 
