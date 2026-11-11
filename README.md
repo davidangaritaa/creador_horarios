@@ -28,6 +28,10 @@ Cada horario recibe un **puntaje** (menos es mejor; puede ser negativo):
 **¿Por qué premiar los lunes?** En Colombia casi todos los festivos caen lunes (Ley Emiliani),
 así que las clases del lunes se pierden seguido y el semestre queda más liviano.
 
+**Horas ocupadas.** Si trabajas o tienes algo fijo (por ejemplo, "los martes de 2 a 6"), lo marcas
+como hora ocupada: ningún grupo que se cruce con ella entra en el horario, y si queda entre dos
+clases **no cuenta como hueco**.
+
 Los pesos se cambian en [`horario/costo.py`](horario/costo.py) (`PESOS`, `HORA_INICIO`, `HORA_FIN`).
 
 ## Cómo usarlo
@@ -42,8 +46,12 @@ Abre [`index.html`](index.html) con doble clic, o entra a la versión publicada 
   de resaltador por materia. Puedes comparar las mejores opciones e imprimirlo o guardarlo en PDF.
 - **En "Tus materias"** escribes los grupos en la tabla o cargas tu CSV (también acepta el CSV con `;`
   que guarda Excel en español). El horario se recalcula solo con cada cambio.
+- **En "Tus horas ocupadas"** marcas el trabajo, el deporte o lo que no puedas mover.
 - **En "Cómo se califica"** ajustas las reglas, escritas como frases: cuánto pesan los huecos,
   el rango de horas, el viernes libre y el premio del lunes.
+- **"Pasar este horario a tu calendario"** descarga un archivo `.ics` con las clases de todo el
+  semestre para Google Calendar, Outlook o el celular: se repiten cada semana, **se saltan los
+  festivos de Colombia** (calculados con la Ley Emiliani y la Semana Santa) y te avisan 15 minutos antes.
 
 Todo se calcula en tu navegador: los datos no se envían a ningún lado, y la página recuerda tus
 materias si la cierras.
@@ -75,6 +83,9 @@ python main.py ejemplos/cursos.csv
 
 # 3. Ver los 5 mejores y guardar la imagen con otro nombre
 python main.py ejemplos/cursos.csv --top 5 --imagen mi_horario.png
+
+# 4. Marcar horas ocupadas (se puede repetir)
+python main.py ejemplos/cursos.csv --bloquear "Mar 14:00-18:00" --bloquear "Jue 14:00-18:00"
 ```
 
 Salida en la consola:
@@ -125,6 +136,9 @@ Usa **backtracking con poda** (ramificación y poda):
 4. Si lo escogido hasta ahora **ya no puede superar** a los mejores horarios encontrados, deja de explorar ese camino (*poda*).
 5. Al completar todas las materias, guarda el horario si está entre los mejores.
 
+Antes de empezar quita los grupos que caen en **horas ocupadas**; si alguna materia se queda sin
+grupos, avisa que no hay horario posible.
+
 **Detalle de la poda:** la cota usa solo las horas fuera de rango y los días usados, porque esos
 puntos solo pueden **subir** al agregar materias. Los huecos **no** entran en la cota: una materia
 nueva puede caer en medio de un hueco y taparlo, así que los huecos pueden **bajar**.
@@ -138,34 +152,40 @@ Sin poda habría que revisar el producto de los grupos de todas las materias
 
 ```
 creador-horarios/
-├── index.html           # versión web (mismo algoritmo en JavaScript, en un solo archivo)
+├── index.html           # versión web (mismo algoritmo en JavaScript, festivos y calendario .ics)
 ├── main.py              # punto de entrada (línea de comandos)
 ├── horario/
-│   ├── datos.py         # lee el CSV
+│   ├── datos.py         # lee el CSV y las horas ocupadas
 │   ├── costo.py         # puntaje: huecos, horas fuera de rango, días, viernes y lunes
-│   ├── buscador.py      # backtracking con poda
+│   ├── buscador.py      # backtracking con poda (sin los grupos que caen en horas ocupadas)
 │   └── mostrar.py       # tabla en consola e imagen PNG
 ├── ejemplos/
 │   ├── cursos.csv       # datos de ejemplo
 │   └── foto-*.png       # capturas de muestra para probar la lectura con IA
-├── tests/               # pruebas (la poda da lo mismo que la fuerza bruta)
+├── tests/               # pruebas: poda = fuerza bruta, y la web = Python
 └── docs/                # imágenes del README
 ```
 
 ## Pruebas
 
 ```bash
-python tests/test_buscador.py
+python tests/test_buscador.py   # la poda encuentra el mismo óptimo que probar todo
+python tests/test_web.py        # la página web da lo mismo que Python (necesita Node.js)
 ```
 
-Comprueban que la búsqueda con poda encuentra el mismo óptimo que probar todas las combinaciones.
+- `test_buscador.py` comprueba, con cientos de casos al azar (con y sin horas ocupadas), que la
+  búsqueda con poda encuentra el mismo óptimo que probar todas las combinaciones.
+- `test_web.py` corre el JavaScript de `index.html` con Node.js y comprueba que da los mismos
+  puntajes que Python en 300 casos al azar. También revisa los festivos de 2026 contra la lista
+  oficial y el archivo de calendario. Si Node.js no está instalado, se salta.
 
 ## Próximas ideas
 
 - [x] Interfaz web que no necesita instalar nada.
 - [x] Pasar **capturas de pantalla** a la tabla (con cualquier IA, copiando y pegando).
 - [ ] Hacerlo en un solo clic (subir la foto directo a la página, con un servidor que llame a la API).
-- [ ] Bloquear horas (por ejemplo, "los martes trabajo de 2 a 6").
+- [x] Bloquear horas (por ejemplo, "los martes trabajo de 2 a 6").
+- [x] Exportar el horario al calendario (`.ics`), sin los festivos de Colombia.
 - [ ] Preferir o evitar profesores.
 
 ## Origen
