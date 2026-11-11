@@ -1,0 +1,726 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Creador de horarios</title>
+<meta name="description" content="Arma el mejor horario del semestre sin cruces ni huecos, directamente en el navegador.">
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --texto: #1d2330;
+    --suave: #5b6475;
+    --borde: #dfe3ea;
+    --acento: #2f6fdf;
+    --acento-texto: #ffffff;
+    --zona: #eef0f4;
+    --error: #c23934;
+    --error-fondo: #fdecec;
+    --ok: #1f8a4c;
+    --sombra: 0 1px 2px rgba(20, 30, 50, .06), 0 2px 8px rgba(20, 30, 50, .05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b;
+      --panel: #1b2029;
+      --texto: #e6e9ef;
+      --suave: #9aa3b4;
+      --borde: #2c3340;
+      --acento: #5b8ff0;
+      --acento-texto: #0d1117;
+      --zona: #222833;
+      --error: #ff8a84;
+      --error-fondo: #3a1f22;
+      --ok: #5fd08f;
+      --sombra: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--texto);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .contenedor { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; }
+  header h1 { margin: 0 0 4px; font-size: 1.7rem; }
+  header p { margin: 0; color: var(--suave); }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--borde);
+    border-radius: 12px;
+    box-shadow: var(--sombra);
+    padding: 18px;
+    margin-top: 18px;
+  }
+  .panel h2 { margin: 0 0 4px; font-size: 1.1rem; }
+  .panel .ayuda { margin: 0 0 14px; color: var(--suave); font-size: .9rem; }
+  .barra { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  button, .boton {
+    font: inherit;
+    font-size: .9rem;
+    border: 1px solid var(--borde);
+    background: var(--panel);
+    color: var(--texto);
+    padding: 7px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  button:hover, .boton:hover { border-color: var(--acento); }
+  button.principal { background: var(--acento); color: var(--acento-texto); border-color: var(--acento); }
+  button.icono { padding: 4px 8px; color: var(--suave); }
+  input[type=file] { display: none; }
+
+  /* Tabla de cursos */
+  .tabla-scroll { overflow: auto; max-height: 430px; border: 1px solid var(--borde); border-radius: 8px; }
+  table.cursos { border-collapse: collapse; width: 100%; min-width: 780px; }
+  table.cursos th {
+    text-align: left; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--suave); font-weight: 600; padding: 7px 6px; border-bottom: 1px solid var(--borde);
+    position: sticky; top: 0; background: var(--panel); z-index: 1;
+  }
+  table.cursos td { padding: 2px 4px; border-bottom: 1px solid var(--borde); }
+  table.cursos td:last-child { white-space: nowrap; text-align: right; }
+  table.cursos tr.con-error td { background: var(--error-fondo); }
+  table.cursos input, table.cursos select, .prefs input {
+    font: inherit; font-size: .9rem; width: 100%;
+    background: transparent; color: var(--texto);
+    border: 1px solid transparent; border-radius: 6px; padding: 5px 6px;
+  }
+  table.cursos input:hover, table.cursos select:hover { border-color: var(--borde); }
+  table.cursos input:focus, table.cursos select:focus, .prefs input:focus { outline: none; border-color: var(--acento); }
+  table.cursos select option { background: var(--panel); color: var(--texto); }
+  .errores { margin: 10px 0 0; padding: 0; list-style: none; color: var(--error); font-size: .88rem; }
+
+  /* Preferencias */
+  .prefs { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+  .prefs label { display: block; font-size: .85rem; color: var(--suave); margin-bottom: 3px; }
+  .prefs input { border-color: var(--borde); }
+  .pref { background: var(--bg); border-radius: 8px; padding: 10px; }
+  .pref small { display: block; color: var(--suave); font-size: .78rem; margin-top: 3px; }
+
+  /* Resultados */
+  .stats { color: var(--suave); font-size: .88rem; margin-bottom: 12px; }
+  .opciones { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .opciones button[aria-pressed=true] { background: var(--acento); color: var(--acento-texto); border-color: var(--acento); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .chip { background: var(--bg); border: 1px solid var(--borde); border-radius: 999px; padding: 3px 11px; font-size: .85rem; }
+  .chip b { font-weight: 650; }
+  .chip.bueno b { color: var(--ok); }
+  .chip.malo b { color: var(--error); }
+  .vacio { color: var(--suave); text-align: center; padding: 28px 8px; }
+
+  /* Calendario */
+  .cal-scroll { overflow-x: auto; }
+  .cal { display: grid; min-width: 620px; position: relative; }
+  .cal .cab { text-align: center; font-weight: 600; font-size: .88rem; padding: 6px 0; border-bottom: 1px solid var(--borde); }
+  .cal .cab small { display: block; font-weight: 400; color: var(--suave); font-size: .72rem; }
+  .cal .horas { position: relative; }
+  .cal .hora { position: absolute; right: 8px; font-size: .75rem; color: var(--suave); transform: translateY(-50%); }
+  .cal .dia { position: relative; border-left: 1px solid var(--borde); }
+  .cal .linea { position: absolute; left: 0; right: 0; border-top: 1px solid var(--borde); }
+  .cal .zona { position: absolute; left: 0; right: 0; background: var(--zona); }
+  .bloque {
+    position: absolute; left: 4px; right: 4px; border-radius: 7px; color: #fff;
+    padding: 4px 6px; font-size: .76rem; line-height: 1.25; overflow: hidden;
+  }
+  .bloque b { display: block; font-size: .8rem; }
+  table.detalle { border-collapse: collapse; width: 100%; margin-top: 16px; font-size: .9rem; }
+  table.detalle th { text-align: left; color: var(--suave); font-weight: 600; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+  table.detalle th, table.detalle td { padding: 6px; border-bottom: 1px solid var(--borde); vertical-align: top; }
+  .punto { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  footer { margin-top: 28px; color: var(--suave); font-size: .85rem; text-align: center; }
+  footer a { color: var(--acento); }
+
+  @media print {
+    body { background: #fff; }
+    .no-imprimir { display: none !important; }
+    .panel { border: none; box-shadow: none; }
+  }
+</style>
+</head>
+<body>
+<div class="contenedor">
+  <header>
+    <h1>Creador de horarios 🗓️</h1>
+    <p>Escribe los grupos de cada materia y la página arma el mejor horario: sin cruces, con pocos huecos, el viernes libre y aprovechando los lunes festivos.</p>
+  </header>
+
+  <!-- 1. Cursos -->
+  <section class="panel no-imprimir">
+    <h2>1. Materias y grupos</h2>
+    <p class="ayuda">Una fila por cada clase. Si un grupo ve clase lunes y miércoles, son dos filas con la misma materia y el mismo grupo.</p>
+    <div class="barra">
+      <button id="btn-agregar">+ Agregar clase</button>
+      <label class="boton" for="archivo">📂 Cargar CSV</label>
+      <input type="file" id="archivo" accept=".csv,text/csv">
+      <button id="btn-descargar">💾 Descargar CSV</button>
+      <button id="btn-ejemplo">Cargar ejemplo</button>
+      <button id="btn-limpiar">Borrar todo</button>
+    </div>
+    <div class="tabla-scroll">
+      <table class="cursos">
+        <thead>
+          <tr>
+            <th style="width:21%">Materia</th>
+            <th style="width:9%">Grupo / NRC</th>
+            <th style="width:12%">Día</th>
+            <th style="width:13%">Inicio</th>
+            <th style="width:13%">Fin</th>
+            <th style="width:14%">Profesor</th>
+            <th style="width:10%">Salón</th>
+            <th style="width:76px"></th>
+          </tr>
+        </thead>
+        <tbody id="filas"></tbody>
+      </table>
+    </div>
+    <ul class="errores" id="errores"></ul>
+  </section>
+
+  <!-- 2. Preferencias -->
+  <section class="panel no-imprimir">
+    <h2>2. Preferencias</h2>
+    <p class="ayuda">Cada horario suma puntos según estas reglas; gana el que tenga <b>menos</b> puntos. Pon 0 para ignorar una regla.</p>
+    <div class="prefs" id="prefs"></div>
+  </section>
+
+  <!-- 3. Resultados -->
+  <section class="panel">
+    <div class="barra no-imprimir" style="justify-content:space-between;align-items:center;margin-bottom:4px">
+      <h2 style="margin:0">3. Mejores horarios</h2>
+      <button id="btn-imprimir">🖨️ Imprimir / PDF</button>
+    </div>
+    <div class="stats no-imprimir" id="stats"></div>
+    <div class="opciones no-imprimir" id="opciones"></div>
+    <div class="chips" id="chips"></div>
+    <div class="cal-scroll"><div class="cal" id="calendario"></div></div>
+    <div id="detalle"></div>
+  </section>
+
+  <footer class="no-imprimir">
+    Todo se calcula en tu navegador; tus datos no salen de tu computador.
+    · <a href="https://github.com/davidangaritaa/creador-horarios">Código en GitHub</a>
+  </footer>
+</div>
+
+<script>
+/* =====================================================================
+   LÓGICA (equivalente a horario/costo.py y horario/buscador.py)
+   ===================================================================== */
+const DIAS = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab"];
+const NOMBRES_DIA = { Lun: "Lunes", Mar: "Martes", Mie: "Miércoles", Jue: "Jueves", Vie: "Viernes", Sab: "Sábado" };
+
+const PESOS_INICIALES = { hueco: 1.0, temprano: 2.0, tarde: 2.0, dia: 0.5, viernes: 1.5, lunes: 0.5 };
+
+function aMinutos(hora) {
+  const m = String(hora || "").trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return NaN;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+function aHora(min) {
+  return String(Math.floor(min / 60)).padStart(2, "0") + ":" + String(min % 60).padStart(2, "0");
+}
+function normalizarDia(texto) {
+  const t = String(texto || "").trim().normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const d = t.charAt(0).toUpperCase() + t.slice(1, 3);
+  return DIAS.includes(d) ? d : null;
+}
+function seCruzan(a, b) {
+  return a.dia === b.dia && a.inicio < b.fin && b.inicio < a.fin;
+}
+function grupoChoca(grupo, elegidos) {
+  for (const otro of elegidos)
+    for (const s1 of grupo.sesiones)
+      for (const s2 of otro.sesiones)
+        if (seCruzan(s1, s2)) return true;
+  return false;
+}
+
+function detalleCosto(grupos, cfg) {
+  const porDia = {};
+  for (const d of DIAS) porDia[d] = [];
+  let temprano = 0, tarde = 0;
+  for (const g of grupos) {
+    for (const s of g.sesiones) {
+      porDia[s.dia].push(s);
+      temprano += Math.max(0, Math.min(s.fin, cfg.horaInicio) - s.inicio) / 60;
+      tarde += Math.max(0, s.fin - Math.max(s.inicio, cfg.horaFin)) / 60;
+    }
+  }
+  let huecos = 0, dias = 0;
+  for (const d of DIAS) {
+    const ses = porDia[d];
+    if (!ses.length) continue;
+    dias++;
+    const primera = Math.min(...ses.map(s => s.inicio));
+    const ultima = Math.max(...ses.map(s => s.fin));
+    const enClase = ses.reduce((a, s) => a + s.fin - s.inicio, 0);
+    huecos += (ultima - primera - enClase) / 60;
+  }
+  const viernes = porDia.Vie.length ? 1 : 0;
+  const horasLunes = porDia.Lun.reduce((a, s) => a + s.fin - s.inicio, 0) / 60;
+  const P = cfg.pesos;
+  const total = P.hueco * huecos + P.temprano * temprano + P.tarde * tarde
+              + P.dia * dias + P.viernes * viernes - P.lunes * horasLunes;
+  return { huecos, temprano, tarde, dias, viernes, horasLunes, total };
+}
+
+function horasLunesGrupo(g) {
+  return g.sesiones.filter(s => s.dia === "Lun").reduce((a, s) => a + s.fin - s.inicio, 0) / 60;
+}
+
+/* Cota optimista: huecos fuera (pueden bajar), y se resta el máximo
+   premio de lunes que aún pueden dar las materias que faltan. */
+function cotaInferior(grupos, lunesPendiente, cfg) {
+  const d = detalleCosto(grupos, cfg), P = cfg.pesos;
+  return P.temprano * d.temprano + P.tarde * d.tarde + P.dia * d.dias
+       + P.viernes * d.viernes - P.lunes * (d.horasLunes + lunesPendiente);
+}
+
+const LIMITE_NODOS = 3000000;
+
+function buscar(cursos, cfg) {
+  const materias = Object.keys(cursos).sort((a, b) => cursos[a].length - cursos[b].length);
+  const pendiente = new Array(materias.length + 1).fill(0);
+  for (let i = materias.length - 1; i >= 0; i--)
+    pendiente[i] = pendiente[i + 1] + Math.max(...cursos[materias[i]].map(horasLunesGrupo));
+
+  const mejores = [];
+  let nodos = 0, cortado = false;
+  const peor = () => mejores.length === cfg.top ? mejores[mejores.length - 1].costo : Infinity;
+
+  function recorrer(i, elegidos) {
+    if (cortado) return;
+    if (++nodos > LIMITE_NODOS) { cortado = true; return; }
+    if (i === materias.length) {
+      const c = detalleCosto(elegidos, cfg).total;
+      if (c < peor()) {
+        mejores.push({ costo: c, grupos: elegidos.slice() });
+        mejores.sort((a, b) => a.costo - b.costo);
+        mejores.length = Math.min(mejores.length, cfg.top);
+      }
+      return;
+    }
+    for (const g of cursos[materias[i]]) {
+      if (grupoChoca(g, elegidos)) continue;
+      elegidos.push(g);
+      if (cotaInferior(elegidos, pendiente[i + 1], cfg) < peor()) recorrer(i + 1, elegidos);
+      elegidos.pop();
+    }
+  }
+  recorrer(0, []);
+  return { mejores, nodos: Math.min(nodos, LIMITE_NODOS), cortado };
+}
+
+/* Convierte las filas de la tabla en {materia: [grupo, ...]} y valida. */
+function construirCursos(filas) {
+  const errores = [], grupos = new Map(), filasMalas = new Set();
+  filas.forEach((f, idx) => {
+    const n = idx + 1;
+    const materia = (f.materia || "").trim(), nombre = (f.grupo || "").trim();
+    const vacia = !materia && !nombre && !f.inicio && !f.fin;
+    if (vacia) return;
+    const mal = msg => { errores.push(`Fila ${n}: ${msg}`); filasMalas.add(idx); };
+    if (!materia) return mal("falta el nombre de la materia.");
+    if (!nombre) return mal("falta el grupo o NRC.");
+    const dia = normalizarDia(f.dia);
+    if (!dia) return mal(`el día "${f.dia}" no es válido.`);
+    const inicio = aMinutos(f.inicio), fin = aMinutos(f.fin);
+    if (isNaN(inicio) || isNaN(fin)) return mal("falta la hora de inicio o de fin.");
+    if (fin <= inicio) return mal("la hora de fin debe ser mayor que la de inicio.");
+    const clave = materia.toLowerCase() + "\u0000" + nombre.toLowerCase();
+    if (!grupos.has(clave))
+      grupos.set(clave, { materia, nombre, sesiones: [], filas: [], profesor: (f.profesor || "").trim(), salon: (f.salon || "").trim() });
+    const g = grupos.get(clave);
+    g.sesiones.push({ dia, inicio, fin, salon: (f.salon || "").trim() });
+    g.filas.push(idx);
+  });
+
+  const cursos = {};
+  for (const g of grupos.values()) {
+    let pisado = false;
+    for (let a = 0; a < g.sesiones.length && !pisado; a++)
+      for (let b = a + 1; b < g.sesiones.length; b++)
+        if (seCruzan(g.sesiones[a], g.sesiones[b])) { pisado = true; break; }
+    if (pisado) {
+      errores.push(`${g.materia} (${g.nombre}): tiene dos clases que se cruzan entre sí; se ignora este grupo.`);
+      g.filas.forEach(i => filasMalas.add(i));
+      continue;
+    }
+    (cursos[g.materia] = cursos[g.materia] || []).push(g);
+  }
+  return { cursos, errores, filasMalas };
+}
+
+/* =====================================================================
+   CSV
+   ===================================================================== */
+const EJEMPLO_CSV = `materia,grupo,dia,inicio,fin,profesor,salon
+Calculo III,A,Lun,08:00,10:00,Perez,A-201
+Calculo III,A,Mie,08:00,10:00,Perez,A-201
+Calculo III,B,Mar,10:00,12:00,Gomez,A-305
+Calculo III,B,Jue,10:00,12:00,Gomez,A-305
+Calculo III,C,Lun,06:00,08:00,Rojas,B-104
+Calculo III,C,Mie,06:00,08:00,Rojas,B-104
+Bases de Datos,A,Lun,10:00,12:00,Diaz,Lab-3
+Bases de Datos,A,Mie,10:00,12:00,Diaz,Lab-3
+Bases de Datos,B,Mar,14:00,16:00,Ortiz,Lab-1
+Bases de Datos,B,Jue,14:00,16:00,Ortiz,Lab-1
+Bases de Datos,C,Mar,18:00,20:00,Ortiz,Lab-1
+Bases de Datos,C,Jue,18:00,20:00,Ortiz,Lab-1
+Redes,A,Mar,08:00,10:00,Suarez,C-210
+Redes,A,Jue,08:00,10:00,Suarez,C-210
+Redes,B,Lun,14:00,16:00,Suarez,C-210
+Redes,B,Mie,14:00,16:00,Suarez,C-210
+Ingles IV,A,Vie,08:00,11:00,Smith,D-101
+Ingles IV,B,Vie,13:00,16:00,Brown,D-102
+Ingles IV,C,Lun,12:00,14:00,Smith,D-101
+Ingles IV,C,Mie,12:00,13:00,Smith,D-101
+Etica,A,Mar,12:00,14:00,Mora,E-001
+Etica,B,Vie,11:00,13:00,Mora,E-001
+Etica,C,Jue,16:00,18:00,Mora,E-001`;
+
+function parsearCSV(texto) {
+  texto = texto.replace(/^﻿/, "");
+  const primera = texto.split(/\r?\n/)[0] || "";
+  // Excel en español guarda con ";" en vez de ","
+  const sep = (primera.split(";").length > primera.split(",").length) ? ";" : ",";
+  const filas = [];
+  let fila = [], campo = "", comillas = false;
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto[i];
+    if (comillas) {
+      if (c === '"' && texto[i + 1] === '"') { campo += '"'; i++; }
+      else if (c === '"') comillas = false;
+      else campo += c;
+    } else if (c === '"') comillas = true;
+    else if (c === sep) { fila.push(campo); campo = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && texto[i + 1] === "\n") i++;
+      fila.push(campo); filas.push(fila); fila = []; campo = "";
+    } else campo += c;
+  }
+  if (campo || fila.length) { fila.push(campo); filas.push(fila); }
+
+  const limpiar = s => s.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const cab = (filas.shift() || []).map(limpiar);
+  const col = nombre => cab.indexOf(nombre);
+  const faltan = ["materia", "grupo", "dia", "inicio", "fin"].filter(c => col(c) < 0);
+  if (faltan.length) throw new Error("Al CSV le faltan las columnas: " + faltan.join(", "));
+
+  const hora = h => {
+    const m = String(h || "").trim().match(/^(\d{1,2}):(\d{2})/);
+    return m ? m[1].padStart(2, "0") + ":" + m[2] : String(h || "").trim();
+  };
+  return filas
+    .filter(f => f.some(x => x.trim()))
+    .map(f => ({
+      materia: (f[col("materia")] || "").trim(),
+      grupo: (f[col("grupo")] || "").trim(),
+      dia: normalizarDia(f[col("dia")]) || (f[col("dia")] || "").trim(),
+      inicio: hora(f[col("inicio")]),
+      fin: hora(f[col("fin")]),
+      profesor: col("profesor") >= 0 ? (f[col("profesor")] || "").trim() : "",
+      salon: col("salon") >= 0 ? (f[col("salon")] || "").trim() : "",
+    }));
+}
+
+function generarCSV(filas) {
+  const q = v => /[",;\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  const cols = ["materia", "grupo", "dia", "inicio", "fin", "profesor", "salon"];
+  return [cols.join(",")].concat(filas.map(f => cols.map(c => q(String(f[c] || ""))).join(","))).join("\n");
+}
+
+/* =====================================================================
+   INTERFAZ
+   ===================================================================== */
+const CLAVE = "creador-horarios-v1";
+const COLORES = ["#4C78A8", "#E8762C", "#3E9651", "#B05FA0", "#D64545",
+                 "#2A9D9A", "#8C6D4F", "#C59A00", "#E0607E", "#6B6B9A"];
+
+let estado = {
+  filas: parsearCSV(EJEMPLO_CSV),
+  pesos: { ...PESOS_INICIALES },
+  horaInicio: "08:00",
+  horaFin: "18:00",
+  top: 5,
+};
+let resultado = null, seleccion = 0;
+
+function cargarEstado() {
+  try {
+    const guardado = JSON.parse(localStorage.getItem(CLAVE) || "null");
+    if (guardado && Array.isArray(guardado.filas)) {
+      estado = { ...estado, ...guardado, pesos: { ...PESOS_INICIALES, ...(guardado.pesos || {}) } };
+    }
+  } catch (e) { /* sin almacenamiento: se usa el ejemplo */ }
+}
+function guardarEstado() {
+  try { localStorage.setItem(CLAVE, JSON.stringify(estado)); } catch (e) { /* ignorar */ }
+}
+
+const $ = id => document.getElementById(id);
+function el(tag, attrs = {}, ...hijos) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "style" && typeof v === "object") Object.assign(e.style, v);
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (v !== undefined && v !== null) e.setAttribute(k, v);
+  }
+  for (const h of hijos) if (h !== null && h !== undefined) e.append(h);
+  return e;
+}
+
+/* --- Tabla de cursos --- */
+function pintarFilas() {
+  const tbody = $("filas");
+  tbody.innerHTML = "";
+  estado.filas.forEach((f, idx) => {
+    const campo = (clave, tipo = "text", extra = {}) =>
+      el("input", { type: tipo, value: f[clave] || "", "aria-label": clave, ...extra,
+        oninput: e => { f[clave] = e.target.value; cambio(); } });
+    const selDia = el("select", { "aria-label": "día", onchange: e => { f.dia = e.target.value; cambio(); } },
+      ...DIAS.map(d => el("option", { value: d }, NOMBRES_DIA[d])));
+    if (!DIAS.includes(f.dia)) selDia.prepend(el("option", { value: f.dia || "" }, f.dia || "—"));
+    selDia.value = f.dia || "";
+    tbody.append(el("tr", { "data-idx": idx },
+      el("td", {}, campo("materia", "text", { placeholder: "Ej: Cálculo III" })),
+      el("td", {}, campo("grupo", "text", { placeholder: "A" })),
+      el("td", {}, selDia),
+      el("td", {}, campo("inicio", "time", { step: 300 })),
+      el("td", {}, campo("fin", "time", { step: 300 })),
+      el("td", {}, campo("profesor")),
+      el("td", {}, campo("salon")),
+      el("td", {},
+        el("button", { class: "icono", title: "Duplicar (por ejemplo, para el otro día del mismo grupo)",
+          onclick: () => { estado.filas.splice(idx + 1, 0, { ...f }); pintarFilas(); cambio(); } }, "⧉"),
+        el("button", { class: "icono", title: "Borrar fila",
+          onclick: () => { estado.filas.splice(idx, 1); pintarFilas(); cambio(); } }, "✕"))
+    ));
+  });
+}
+
+/* --- Preferencias --- */
+const PREFS = [
+  { clave: "hueco", titulo: "Hora de hueco", ayuda: "Puntos por cada hora libre entre dos clases del mismo día." },
+  { clave: "temprano", titulo: "Hora antes del inicio", ayuda: "Puntos por cada hora de clase antes de la hora mínima." },
+  { clave: "tarde", titulo: "Hora después del fin", ayuda: "Puntos por cada hora de clase después de la hora máxima." },
+  { clave: "dia", titulo: "Día con clase", ayuda: "Puntos por cada día que hay que ir a la universidad." },
+  { clave: "viernes", titulo: "Ir el viernes", ayuda: "Puntos extra si hay clase el viernes (premia el viernes libre)." },
+  { clave: "lunes", titulo: "Premio por hora el lunes 🎉", ayuda: "Se RESTA por cada hora el lunes: casi todos los festivos en Colombia caen lunes." },
+];
+function pintarPrefs() {
+  const cont = $("prefs");
+  cont.innerHTML = "";
+  for (const p of PREFS) {
+    cont.append(el("div", { class: "pref" },
+      el("label", { for: "p-" + p.clave }, p.titulo),
+      el("input", { id: "p-" + p.clave, type: "number", min: 0, step: 0.5, value: estado.pesos[p.clave],
+        oninput: e => { const v = parseFloat(e.target.value); estado.pesos[p.clave] = isNaN(v) ? 0 : Math.max(0, v); cambio(); } }),
+      el("small", {}, p.ayuda)));
+  }
+  const hora = (clave, titulo, ayuda) => el("div", { class: "pref" },
+    el("label", { for: "p-" + clave }, titulo),
+    el("input", { id: "p-" + clave, type: "time", step: 1800, value: estado[clave],
+      oninput: e => { estado[clave] = e.target.value; cambio(); } }),
+    el("small", {}, ayuda));
+  cont.append(
+    hora("horaInicio", "Hora mínima", "Antes de esta hora se penaliza."),
+    hora("horaFin", "Hora máxima", "Después de esta hora se penaliza."),
+    el("div", { class: "pref" },
+      el("label", { for: "p-top" }, "Opciones a mostrar"),
+      el("input", { id: "p-top", type: "number", min: 1, max: 20, step: 1, value: estado.top,
+        oninput: e => { estado.top = Math.min(20, Math.max(1, parseInt(e.target.value) || 1)); cambio(); } }),
+      el("small", {}, "Cuántos de los mejores horarios comparar.")));
+}
+
+/* --- Cálculo --- */
+let temporizador = null;
+function cambio() {
+  guardarEstado();
+  clearTimeout(temporizador);
+  temporizador = setTimeout(calcular, 200);
+}
+
+function calcular() {
+  const { cursos, errores, filasMalas } = construirCursos(estado.filas);
+
+  const lista = $("errores");
+  lista.innerHTML = "";
+  errores.slice(0, 8).forEach(e => lista.append(el("li", {}, "⚠️ " + e)));
+  if (errores.length > 8) lista.append(el("li", {}, `…y ${errores.length - 8} más.`));
+  document.querySelectorAll("#filas tr").forEach(tr =>
+    tr.classList.toggle("con-error", filasMalas.has(Number(tr.dataset.idx))));
+
+  const cfg = {
+    pesos: estado.pesos,
+    horaInicio: isNaN(aMinutos(estado.horaInicio)) ? 480 : aMinutos(estado.horaInicio),
+    horaFin: isNaN(aMinutos(estado.horaFin)) ? 1080 : aMinutos(estado.horaFin),
+    top: estado.top,
+  };
+  const materias = Object.keys(cursos);
+  const combinaciones = materias.reduce((a, m) => a * cursos[m].length, materias.length ? 1 : 0);
+
+  if (!materias.length) {
+    resultado = null;
+    $("stats").textContent = "";
+    pintarResultado(cfg, "Agrega materias en la tabla de arriba para ver tu horario.");
+    return;
+  }
+  const t0 = performance.now();
+  const r = buscar(cursos, cfg);
+  const ms = performance.now() - t0;
+  resultado = { ...r, cfg };
+  if (seleccion >= r.mejores.length) seleccion = 0;
+
+  $("stats").textContent =
+    `${materias.length} materia(s) · ${combinaciones.toLocaleString("es-CO")} combinaciones posibles · ` +
+    `${r.nodos.toLocaleString("es-CO")} revisadas con poda · ${ms.toFixed(1)} ms` +
+    (r.cortado ? " · ⚠️ búsqueda cortada por tamaño, el resultado puede no ser el óptimo" : "");
+
+  pintarResultado(cfg, r.mejores.length ? null :
+    "No existe ningún horario sin cruces con estos grupos. Revisa si dos materias solo tienen grupos a la misma hora.");
+}
+
+/* --- Resultados --- */
+function pintarResultado(cfg, mensajeVacio) {
+  const opciones = $("opciones"), chips = $("chips"), cal = $("calendario"), detalle = $("detalle");
+  opciones.innerHTML = chips.innerHTML = cal.innerHTML = detalle.innerHTML = "";
+  cal.style.display = "";
+  if (mensajeVacio) {
+    cal.style.display = "block";
+    cal.append(el("div", { class: "vacio" }, mensajeVacio));
+    return;
+  }
+  const { mejores } = resultado;
+  mejores.forEach((op, i) => opciones.append(el("button", {
+    "aria-pressed": i === seleccion ? "true" : "false",
+    onclick: () => { seleccion = i; pintarResultado(cfg, null); },
+  }, `Opción ${i + 1} · ${op.costo.toFixed(2)} pts`)));
+
+  const op = mejores[seleccion];
+  const d = detalleCosto(op.grupos, cfg);
+  const chip = (txt, valor, clase = "") => el("span", { class: "chip " + clase }, txt + " ", el("b", {}, valor));
+  chips.append(
+    chip("Puntaje", d.total.toFixed(2)),
+    chip("Días", String(d.dias)),
+    chip("Huecos", fmtH(d.huecos), d.huecos ? "malo" : "bueno"),
+    chip("Lunes", fmtH(d.horasLunes), d.horasLunes ? "bueno" : ""),
+    chip("Viernes", d.viernes ? "con clase" : "libre", d.viernes ? "malo" : "bueno"),
+    chip("Fuera de rango", fmtH(d.temprano + d.tarde), d.temprano + d.tarde ? "malo" : "bueno"),
+  );
+
+  // Colores fijos por materia (según orden alfabético de todas las materias)
+  const todas = [...new Set(estado.filas.map(f => (f.materia || "").trim()).filter(Boolean))].sort();
+  const color = m => COLORES[Math.max(0, todas.indexOf(m)) % COLORES.length];
+
+  // Calendario
+  const sesiones = op.grupos.flatMap(g => g.sesiones.map(s => ({ ...s, g })));
+  const dias = DIAS.filter(dd => dd !== "Sab" || sesiones.some(s => s.dia === "Sab"));
+  const ini = Math.floor(Math.min(cfg.horaInicio, ...sesiones.map(s => s.inicio)) / 60);
+  const fin = Math.ceil(Math.max(cfg.horaFin, ...sesiones.map(s => s.fin)) / 60);
+  const H = 46, alto = (fin - ini) * H;
+  const y = min => (min / 60 - ini) * H;
+
+  cal.style.gridTemplateColumns = `56px repeat(${dias.length}, 1fr)`;
+  cal.append(el("div", { class: "cab" }));
+  for (const dd of dias) {
+    const nota = dd === "Lun" ? "festivos 🎉" : dd === "Vie" ? (d.viernes ? "" : "libre ✨") : "";
+    cal.append(el("div", { class: "cab" }, NOMBRES_DIA[dd], nota ? el("small", {}, nota) : null));
+  }
+  const colHoras = el("div", { class: "horas", style: { height: alto + "px" } });
+  for (let h = ini + 1; h < fin; h++)
+    colHoras.append(el("div", { class: "hora", style: { top: (h - ini) * H + "px" } }, aHora(h * 60)));
+  cal.append(colHoras);
+
+  for (const dd of dias) {
+    const col = el("div", { class: "dia", style: { height: alto + "px" } });
+    if (cfg.horaInicio > ini * 60) col.append(el("div", { class: "zona", style: { top: 0, height: y(cfg.horaInicio) + "px" } }));
+    if (cfg.horaFin < fin * 60) col.append(el("div", { class: "zona", style: { top: y(cfg.horaFin) + "px", bottom: 0 } }));
+    for (let h = ini + 1; h < fin; h++) col.append(el("div", { class: "linea", style: { top: (h - ini) * H + "px" } }));
+    for (const s of sesiones.filter(s => s.dia === dd)) {
+      col.append(el("div", {
+        class: "bloque",
+        title: `${s.g.materia} (${s.g.nombre}) · ${aHora(s.inicio)}–${aHora(s.fin)}${s.g.profesor ? " · " + s.g.profesor : ""}`,
+        style: { top: y(s.inicio) + 2 + "px", height: (y(s.fin) - y(s.inicio) - 4) + "px", background: color(s.g.materia) },
+      },
+        el("b", {}, s.g.materia),
+        `Grupo ${s.g.nombre} · ${aHora(s.inicio)}–${aHora(s.fin)}`,
+        s.salon ? el("div", {}, s.salon) : null));
+    }
+    cal.append(col);
+  }
+
+  // Detalle de los grupos escogidos
+  const filas = op.grupos.slice().sort((a, b) => a.materia.localeCompare(b.materia)).map(g =>
+    el("tr", {},
+      el("td", {}, el("span", { class: "punto", style: { background: color(g.materia) } }), g.materia),
+      el("td", {}, g.nombre),
+      el("td", {}, g.profesor || "—"),
+      el("td", {}, g.sesiones.slice().sort((a, b) => DIAS.indexOf(a.dia) - DIAS.indexOf(b.dia) || a.inicio - b.inicio)
+        .map(s => `${s.dia} ${aHora(s.inicio)}–${aHora(s.fin)}${s.salon ? " (" + s.salon + ")" : ""}`).join(" · "))));
+  detalle.append(el("table", { class: "detalle" },
+    el("thead", {}, el("tr", {}, el("th", {}, "Materia"), el("th", {}, "Grupo"), el("th", {}, "Profesor"), el("th", {}, "Clases"))),
+    el("tbody", {}, ...filas)));
+}
+
+function fmtH(h) {
+  return (Math.round(h * 10) / 10).toString().replace(".", ",") + " h";
+}
+
+/* --- Botones --- */
+$("btn-agregar").onclick = () => {
+  const ultima = estado.filas[estado.filas.length - 1];
+  estado.filas.push({ materia: ultima ? ultima.materia : "", grupo: "", dia: "Lun", inicio: "", fin: "", profesor: "", salon: "" });
+  pintarFilas();
+  cambio();
+  const inputs = $("filas").lastElementChild.querySelectorAll("input");
+  (ultima ? inputs[1] : inputs[0]).focus();
+};
+$("archivo").onchange = e => {
+  const archivo = e.target.files[0];
+  if (!archivo) return;
+  const lector = new FileReader();
+  lector.onload = () => {
+    try {
+      estado.filas = parsearCSV(String(lector.result));
+      seleccion = 0;
+      pintarFilas();
+      cambio();
+    } catch (err) {
+      alert(err.message);
+    }
+    e.target.value = "";
+  };
+  lector.readAsText(archivo, "utf-8");
+};
+$("btn-descargar").onclick = () => {
+  const blob = new Blob(["﻿" + generarCSV(estado.filas)], { type: "text/csv;charset=utf-8" });
+  const a = el("a", { href: URL.createObjectURL(blob), download: "cursos.csv" });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$("btn-ejemplo").onclick = () => {
+  if (!confirm("Esto reemplaza tus materias por las del ejemplo. ¿Continuar?")) return;
+  estado.filas = parsearCSV(EJEMPLO_CSV);
+  seleccion = 0;
+  pintarFilas();
+  cambio();
+};
+$("btn-limpiar").onclick = () => {
+  if (!confirm("¿Borrar todas las materias?")) return;
+  estado.filas = [];
+  pintarFilas();
+  cambio();
+};
+$("btn-imprimir").onclick = () => window.print();
+
+cargarEstado();
+pintarFilas();
+pintarPrefs();
+calcular();
+</script>
+</body>
+</html>

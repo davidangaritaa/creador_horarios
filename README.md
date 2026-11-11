@@ -29,6 +29,19 @@ Los pesos se cambian en [`horario/costo.py`](horario/costo.py) (`PESOS`, `HORA_I
 
 ## Cómo usarlo
 
+### En el navegador (sin instalar nada)
+
+Abre [`index.html`](index.html) con doble clic, o entra a la versión publicada en
+**https://davidangaritaa.github.io/creador-horarios/**.
+
+- Escribe las materias en la tabla o carga tu CSV (también acepta el CSV con `;` que guarda Excel en español).
+- Ajusta las preferencias (huecos, viernes libre, premio del lunes, rango de horas).
+- El mejor horario se dibuja al instante; puedes comparar varias opciones e imprimirlo o guardarlo en PDF.
+
+Todo se calcula en tu navegador: los datos no se envían a ningún lado.
+
+### En la consola (Python)
+
 Necesitas **Python 3.9 o más reciente**.
 
 ```bash
@@ -99,6 +112,7 @@ Sin poda habría que revisar el producto de los grupos de todas las materias
 
 ```
 creador-horarios/
+├── index.html           # versión web (mismo algoritmo en JavaScript)
 ├── main.py              # punto de entrada (línea de comandos)
 ├── horario/
 │   ├── datos.py         # lee el CSV
@@ -123,7 +137,7 @@ Comprueban que la búsqueda con poda encuentra el mismo óptimo que probar todas
 - [ ] Leer los cursos directamente desde una **captura de pantalla** (OCR).
 - [ ] Bloquear horas (por ejemplo, "los martes trabajo de 2 a 6").
 - [ ] Preferir o evitar profesores.
-- [ ] Interfaz web.
+- [x] Interfaz web.
 
 ## Origen
 
