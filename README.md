@@ -137,8 +137,9 @@ Usa **backtracking con poda** (ramificación y poda):
 4. Si lo escogido hasta ahora **ya no puede superar** a los mejores horarios encontrados, deja de explorar ese camino (*poda*).
 5. Al completar todas las materias, guarda el horario si está entre los mejores.
 
-Antes de empezar quita los grupos que caen en **horas ocupadas**; si alguna materia se queda sin
-grupos, avisa que no hay horario posible.
+Antes de empezar quita los grupos que caen en **horas ocupadas**. Si alguna materia se queda sin
+grupos (por ejemplo, todos sus grupos son en la mañana y trabajas en la mañana), avisa que esa
+materia **no cabe** y arma el mejor horario con las demás.
 
 **Detalle de la poda:** la cota usa solo las horas fuera de rango y los días usados, porque esos
 puntos solo pueden **subir** al agregar materias. Los huecos **no** entran en la cota: una materia

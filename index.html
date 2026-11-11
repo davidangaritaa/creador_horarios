@@ -90,6 +90,12 @@
   .titular h1 .segunda { display: block; color: var(--tinta-suave); font-weight: 600; }
   .titular .resumen { margin: 14px 0 0; font-size: 1.08rem; max-width: 64ch; color: var(--tinta-suave); }
   .titular .resumen b { color: var(--tinta); font-weight: 600; }
+  .titular .falta {
+    margin: 16px 0 0; max-width: 70ch; padding: 10px 14px;
+    border-left: 4px solid var(--margen); border-radius: 0 10px 10px 0;
+    background: color-mix(in srgb, var(--margen) 9%, transparent);
+  }
+  .titular .falta b { font-weight: 800; color: var(--margen); }
 
   .opciones { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
   .opciones button { font-weight: 600; padding: 7px 12px; }
@@ -257,6 +263,7 @@
     <section class="titular" aria-live="polite">
       <h1 id="titular">Arma tu horario sin cruces.</h1>
       <p class="resumen" id="resumen"></p>
+      <p class="falta" id="falta" hidden></p>
     </section>
 
     <div class="opciones no-imprimir" id="opciones" role="group" aria-label="Opciones de horario"></div>
@@ -1003,29 +1010,50 @@ function calcular() {
   if (!materias.length) {
     resultado = null;
     $("stats").textContent = "";
+    $("falta").hidden = true;
     pintarVacio(cfg, "Arma tu horario sin cruces.",
       "Agrega tus materias abajo, o pasa una captura del portal con una IA, y aquí aparece el mejor horario posible.",
       "aquí aparecerá tu horario");
     return;
   }
   const t0 = performance.now();
-  const r = buscar(cursos, cfg);
+  let r = buscar(cursos, cfg);
+  // Si alguna materia no cabe (todos sus grupos caen en horas ocupadas),
+  // se arma igual el mejor horario con las materias que sí caben.
+  const fuera = r.sinGrupo || [];
+  let posibles = combinaciones;
+  if (fuera.length) {
+    const quedan = {};
+    for (const m of materias) if (!fuera.includes(m)) quedan[m] = cursos[m];
+    if (!Object.keys(quedan).length) {
+      $("stats").textContent = "";
+      $("falta").hidden = true;
+      pintarVacio(cfg, "Ninguna materia cabe en tus horas libres.",
+        "Todos los grupos de todas tus materias se cruzan con tus horas ocupadas. Mueve o quita alguna de ellas.",
+        "no cabe con tus horas ocupadas");
+      return;
+    }
+    r = buscar(quedan, cfg);
+    posibles = Object.values(quedan).reduce((a, gs) => a * gs.length, 1);
+  }
   const ms = performance.now() - t0;
-  resultado = { ...r, cfg, combinaciones };
+  resultado = { ...r, cfg, combinaciones: posibles, fuera };
   if (seleccion >= r.mejores.length) seleccion = 0;
 
+  const falta = $("falta");
+  falta.hidden = !fuera.length;
+  if (fuera.length) {
+    const cuales = enLista(fuera);
+    falta.innerHTML = "";
+    falta.append(el("b", {}, fuera.length === 1 ? `${cuales} no cabe.` : `${cuales} no caben.`),
+      ` Todos sus grupos se cruzan con tus horas ocupadas, así que este es el mejor horario con las otras ${materias.length - fuera.length} materias. ` +
+      "Para incluirla, mueve una hora ocupada o agrega otro grupo de esa materia.");
+  }
+
   $("stats").textContent =
-    `Se revisaron ${r.nodos.toLocaleString("es-CO")} de ${combinaciones.toLocaleString("es-CO")} combinaciones posibles en ${fmtNum(ms)} ms.` +
+    `Se revisaron ${r.nodos.toLocaleString("es-CO")} de ${posibles.toLocaleString("es-CO")} combinaciones posibles en ${fmtNum(ms)} ms.` +
     (r.cortado ? " La búsqueda se cortó por tamaño: quita algunos grupos para asegurar el mejor resultado." : "");
 
-  if (r.sinGrupo && r.sinGrupo.length) {
-    const cuales = enLista(r.sinGrupo);
-    $("stats").textContent = "";
-    pintarVacio(cfg, `Tus horas ocupadas dejan sin grupo a ${cuales}.`,
-      `Todos los grupos de ${cuales} se cruzan con tus horas ocupadas. Mueve o quita alguna de ellas, o agrega otro grupo de esa materia.`,
-      "no cabe con tus horas ocupadas");
-    return;
-  }
   if (!r.mejores.length) {
     pintarVacio(cfg, "Estos grupos siempre se cruzan.",
       "Ninguna combinación queda sin cruces. Revisa si dos materias solo tienen grupos a la misma hora y agrega otro grupo de alguna de ellas.",

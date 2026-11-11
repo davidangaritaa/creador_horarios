@@ -38,8 +38,13 @@ def main():
         print("Horas ocupadas: " + ", ".join(f"{b.dia} {a_hora(b.inicio)}-{a_hora(b.fin)}" for b in bloqueos))
         _, sin_grupo = quitar_bloqueados(cursos, bloqueos)
         if sin_grupo:
-            print(f"\nTodos los grupos de {', '.join(sin_grupo)} caen en tus horas ocupadas: no hay horario posible.")
-            return
+            # Esas materias no caben: se arma el mejor horario con las demás
+            print(f"\nNo cabe: {', '.join(sin_grupo)} (todos sus grupos caen en tus horas ocupadas).")
+            cursos = {m: gs for m, gs in cursos.items() if m not in sin_grupo}
+            if not cursos:
+                print("Ninguna materia cabe en tus horas libres.")
+                return
+            print(f"Este es el mejor horario con las otras {len(cursos)} materias.")
 
     t0 = time.perf_counter()
     mejores, nodos = buscar(cursos, top=args.top, bloqueos=bloqueos)
