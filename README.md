@@ -38,8 +38,9 @@ a viernes de 6 a 8 a. m."), lo marcas como hora ocupada, para uno o varios días
 clases **no cuenta como hueco**.
 
 **Grupos fijos.** Si ya tienes asegurado un grupo, o quieres ver una materia sí o sí con cierto
-profesor, tocas **Fijar este grupo** debajo del horario: esa materia siempre usa ese grupo y el
-resto del horario se arma alrededor.
+profesor, lo escoges en la sección **"Grupos fijos"** (un menú por materia) o tocas
+**📌 Fijar este grupo** debajo del horario: esa materia siempre usa ese grupo y el resto del
+horario se arma alrededor.
 
 Los puntos de cada regla y el rango de horas se cambian en la misma página, en **"Cómo se califica"**.
 
@@ -52,6 +53,8 @@ No hay que instalar nada. Abre [`index.html`](index.html) con doble clic, o entr
   martes y miércoles. Viernes libre."*) y el horario dibujado en un cuaderno cuadriculado, con un color
   de resaltador por materia. Puedes comparar las mejores opciones e imprimirlo o guardarlo en PDF.
 - **Debajo del horario** está cada grupo escogido, con un botón para **fijarlo**.
+- **En "Grupos fijos"** escoges, materia por materia, un grupo que quieres sí o sí (aunque no haya
+  salido en ninguna opción). Los grupos fijos llevan un 📌 en el horario.
 - **Compartir** copia un enlace con tus materias y el horario que estás viendo (en el celular abre
   el menú para mandarlo por WhatsApp). Quien lo abra ve lo mismo que tú; si ya tenía sus propias
   materias, quedan guardadas y puede volver a ellas con un botón.
