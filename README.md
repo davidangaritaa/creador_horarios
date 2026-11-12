@@ -37,6 +37,10 @@ sube los puntos a 100).
 a viernes de 6 a 8 a. m."), lo marcas como hora ocupada, para uno o varios días a la vez: ningún grupo que se cruce con ella entra en el horario, y si queda entre dos
 clases **no cuenta como hueco**.
 
+**Grupos fijos.** Si ya tienes asegurado un grupo, o quieres ver una materia sí o sí con cierto
+profesor, tocas **Fijar este grupo** debajo del horario: esa materia siempre usa ese grupo y el
+resto del horario se arma alrededor.
+
 Los puntos de cada regla y el rango de horas se cambian en la misma página, en **"Cómo se califica"**.
 
 ## Cómo usarlo
@@ -47,6 +51,12 @@ No hay que instalar nada. Abre [`index.html`](index.html) con doble clic, o entr
 - **Arriba ves el resultado**: un titular que describe el mejor horario (por ejemplo, *"Clases lunes,
   martes y miércoles. Viernes libre."*) y el horario dibujado en un cuaderno cuadriculado, con un color
   de resaltador por materia. Puedes comparar las mejores opciones e imprimirlo o guardarlo en PDF.
+- **Debajo del horario** está cada grupo escogido, con un botón para **fijarlo**.
+- **Compartir** copia un enlace con tus materias y el horario que estás viendo (en el celular abre
+  el menú para mandarlo por WhatsApp). Quien lo abra ve lo mismo que tú; si ya tenía sus propias
+  materias, quedan guardadas y puede volver a ellas con un botón.
+- **Descargar imagen** guarda el horario como imagen PNG, con los colores, los salones y la lista
+  de grupos y profesores, lista para mandar o ponerla de fondo de pantalla.
 - **En "Tus materias"** escribes los grupos en la tabla o cargas tu CSV (también acepta el CSV con `;`
   que guarda Excel en español). El horario se recalcula solo con cada cambio.
 - **En "Tus horas ocupadas"** marcas el trabajo, el deporte o lo que no puedas mover. Cada una
@@ -60,7 +70,8 @@ No hay que instalar nada. Abre [`index.html`](index.html) con doble clic, o entr
   festivos de Colombia** (calculados con la Ley Emiliani y la Semana Santa) y te avisan 15 minutos antes.
 
 Todo se calcula en tu navegador: los datos no se envían a ningún lado, y la página recuerda tus
-materias si la cierras.
+materias si la cierras. El enlace para compartir lleva los datos comprimidos después del `#`, una
+parte de la dirección que el navegador no le manda a ningún servidor.
 
 ### Pasar capturas del portal con una IA
 
@@ -104,7 +115,8 @@ Todo el cálculo está en [`index.html`](index.html), en JavaScript, y usa **bac
 4. Si lo escogido hasta ahora **ya no puede superar** a los mejores horarios encontrados, deja de explorar ese camino (*poda*).
 5. Al completar todas las materias, guarda el horario si está entre los mejores.
 
-Antes de empezar quita los grupos que caen en **horas ocupadas**. Si alguna materia se queda sin
+Antes de empezar deja solo el grupo fijo en las materias que tengan uno y quita los grupos que
+caen en **horas ocupadas**. Si alguna materia se queda sin
 grupos (por ejemplo, todos sus grupos son en la mañana y trabajas en la mañana), avisa que esa
 materia **no cabe** y arma el mejor horario con las demás.
 
@@ -141,8 +153,9 @@ node tests/pruebas.js
 Toman la lógica de `index.html` y comprueban, entre otras cosas, que:
 
 - la búsqueda con poda encuentra **el mismo óptimo que probar todas las combinaciones**, en 500
-  casos al azar con horas ocupadas, profesores evitados y pesos distintos;
+  casos al azar con horas ocupadas, profesores evitados, grupos fijos y pesos distintos;
 - las horas ocupadas entre clases no cuentan como hueco y el premio del lunes funciona;
+- el enlace para compartir devuelve exactamente lo mismo que se guardó;
 - se leen bien los CSV (con `,` o `;`, tildes, a. m. / p. m.) y las respuestas pegadas desde una IA;
 - los festivos de 2026 coinciden con la lista oficial y el archivo `.ics` sale bien armado.
 
@@ -154,7 +167,10 @@ Toman la lógica de `index.html` y comprueban, entre otras cosas, que:
 - [x] Bloquear horas (por ejemplo, "los martes trabajo de 2 a 6").
 - [x] Exportar el horario al calendario (`.ics`), sin los festivos de Colombia.
 - [x] Evitar profesores.
-- [ ] Preferir profesores o fijar un grupo ("quiero sí o sí Cálculo con Gómez").
+- [x] Fijar un grupo ("quiero sí o sí Cálculo con Gómez").
+- [x] Compartir el horario con un enlace y descargarlo como imagen.
+- [ ] Materias opcionales ("quiero ver 5 de estas 7") o un máximo de créditos.
+- [ ] Teoría y laboratorio amarrados (dos NRC que van juntos).
 
 ## Origen
 

@@ -58,7 +58,8 @@
   .pagina { max-width: 1140px; margin: 0 auto; padding: 0 16px 56px; }
 
   /* Cabecera */
-  .cabecera { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 0 8px; }
+  .cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 0 8px; }
+  .acciones { display: flex; flex-wrap: wrap; gap: 6px; }
   .marca { white-space: nowrap; font-weight: 800; font-size: 1.05rem; letter-spacing: -.01em; }
   .marca span { font-family: var(--mano); font-weight: 600; font-size: 1.35rem; color: var(--margen); margin-left: 6px; }
 
@@ -76,7 +77,17 @@
   button.principal { background: var(--lapicero); border-color: var(--lapicero); color: var(--lapicero-texto); }
   button.quieto { background: transparent; border-color: transparent; color: var(--tinta-suave); padding: 6px 8px; }
   button.quieto:hover { color: var(--tinta); border-color: var(--linea); }
+  button:disabled { opacity: .45; cursor: not-allowed; border-color: var(--linea); }
   input[type=file] { display: none; }
+
+  /* Mensajito que aparece abajo un momento */
+  .toast {
+    position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 20px); z-index: 10;
+    max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: 10px;
+    background: var(--tinta); color: var(--papel); font-weight: 600; font-size: .95rem;
+    opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+  }
+  .toast.visible { opacity: 1; transform: translate(-50%, 0); }
 
   /* Titular: describe el horario ganador */
   .titular { padding: 26px 0 18px; max-width: 900px; }
@@ -96,6 +107,13 @@
     background: color-mix(in srgb, var(--margen) 9%, transparent);
   }
   .titular .falta b { font-weight: 800; color: var(--margen); }
+  .titular .falta button, .titular .resumen button { margin-left: 6px; padding: 4px 10px; font-size: .85rem; }
+  .compartido {
+    margin: 10px 0 0; padding: 10px 14px; max-width: 900px;
+    border-left: 4px solid var(--lapicero); border-radius: 0 10px 10px 0;
+    background: color-mix(in srgb, var(--lapicero) 9%, transparent);
+  }
+  .compartido button { margin-left: 6px; padding: 4px 10px; font-size: .85rem; }
 
   .opciones { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
   .opciones button { font-weight: 600; padding: 7px 12px; }
@@ -174,6 +192,8 @@
     color: var(--margen); text-decoration: line-through; text-decoration-thickness: 2px;
   }
   .escogidos .evitado { color: var(--margen); font-weight: 600; }
+  .escogidos button.fijar { justify-self: start; margin-top: 6px; padding: 3px 10px; font-size: .8rem; font-weight: 600; color: var(--tinta-suave); }
+  .escogidos button.fijar[aria-pressed=true] { background: var(--tinta); border-color: var(--tinta); color: var(--papel); }
 
   /* Grupos escogidos */
   .escogidos { list-style: none; margin: 18px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 28px; }
@@ -263,8 +283,13 @@
 <div class="pagina">
   <header class="cabecera">
     <div class="marca">Creador de horarios <span>sin cruces</span></div>
-    <button class="no-imprimir" id="btn-imprimir" title="Imprimir o guardar como PDF">Imprimir</button>
+    <div class="acciones no-imprimir">
+      <button id="btn-compartir" title="Copiar un enlace con tus materias y tu horario">Compartir</button>
+      <button id="btn-imagen" title="Descargar el horario como imagen">Descargar imagen</button>
+      <button id="btn-imprimir" title="Imprimir o guardar como PDF">Imprimir</button>
+    </div>
   </header>
+  <p class="compartido no-imprimir" id="compartido" hidden></p>
 
   <main>
     <section class="titular" aria-live="polite">
@@ -389,6 +414,8 @@
     </div>
   </main>
 
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
   <footer class="no-imprimir">
     Todo se calcula en tu navegador; tus datos no salen de tu computador.
     <a href="https://github.com/davidangaritaa/creador-horarios">Ver el código en GitHub</a>
@@ -504,15 +531,27 @@ function cotaInferior(grupos, lunesPendiente, cfg) {
 
 const LIMITE_NODOS = 3000000;
 
+/* Los grupos fijos se guardan como { "calculo iii": "B" } (materia en minúscula -> grupo). */
+const claveMateria = m => String(m || "").trim().toLowerCase();
+
 function buscar(cursosTodos, cfg) {
-  // Se quitan los grupos que caen en horas ocupadas
-  const bloqueos = cfg.bloqueos || [];
-  const cursos = {}, sinGrupo = [];
-  for (const [m, gs] of Object.entries(cursosTodos)) {
+  // Si fijaste un grupo de una materia, esa materia solo puede usar ese grupo.
+  // Después se quitan los grupos que caen en horas ocupadas.
+  const bloqueos = cfg.bloqueos || [], fijos = cfg.fijos || {};
+  const cursos = {}, sinGrupo = [], fijados = [];
+  let combinaciones = 1;
+  for (const [m, todos] of Object.entries(cursosTodos)) {
+    let gs = todos;
+    const fijo = fijos[claveMateria(m)];
+    if (fijo) {
+      const solo = gs.filter(g => claveMateria(g.nombre) === claveMateria(fijo));
+      if (solo.length) { gs = solo; fijados.push(m); }   // si ese grupo ya no existe, no se aplica
+    }
+    combinaciones *= gs.length;
     cursos[m] = gs.filter(g => !chocaConBloqueos(g, bloqueos));
     if (!cursos[m].length) sinGrupo.push(m);
   }
-  if (sinGrupo.length) return { mejores: [], nodos: 0, cortado: false, sinGrupo };
+  if (sinGrupo.length) return { mejores: [], nodos: 0, cortado: false, sinGrupo, fijados, combinaciones };
 
   const materias = Object.keys(cursos).sort((a, b) => cursos[a].length - cursos[b].length);
   const pendiente = new Array(materias.length + 1).fill(0);
@@ -543,7 +582,7 @@ function buscar(cursosTodos, cfg) {
     }
   }
   recorrer(0, []);
-  return { mejores, nodos: Math.min(nodos, LIMITE_NODOS), cortado, sinGrupo };
+  return { mejores, nodos: Math.min(nodos, LIMITE_NODOS), cortado, sinGrupo, fijados, combinaciones };
 }
 
 /* Convierte las filas de la tabla en {materia: [grupo, ...]} y valida. */
@@ -800,6 +839,40 @@ function generarICS(grupos, opciones) {
   lineas.push("END:VCALENDAR");
   return { texto: lineas.join("\r\n") + "\r\n", clases, omitidos };
 }
+/* =====================================================================
+   ENLACE PARA COMPARTIR: el estado en una forma corta (listas en vez de objetos)
+   ===================================================================== */
+const COLUMNAS = ["materia", "grupo", "dia", "inicio", "fin", "profesor", "salon"];
+
+function empacarEstado(e, seleccion) {
+  return {
+    v: 1,
+    f: (e.filas || []).map(f => COLUMNAS.map(c => String(f[c] || ""))),
+    p: e.pesos, h: [e.horaInicio, e.horaFin], t: e.top,
+    b: (e.bloqueos || []).map(b => [b.nombre || "", (b.dias || []).join(" "), b.inicio || "", b.fin || ""]),
+    x: e.evitar || [], j: e.fijos || {}, o: seleccion || 0,
+  };
+}
+
+function desempacarEstado(o) {
+  if (!o || o.v !== 1 || !Array.isArray(o.f)) throw new Error("El enlace no es válido o está incompleto.");
+  const texto = v => String(v == null ? "" : v);
+  const h = Array.isArray(o.h) ? o.h : [];
+  return {
+    estado: {
+      filas: o.f.map(a => Object.fromEntries(COLUMNAS.map((c, i) => [c, texto(a[i])]))),
+      pesos: { ...PESOS_INICIALES, ...(o.p || {}) },
+      horaInicio: texto(h[0] || "08:00"), horaFin: texto(h[1] || "18:00"),
+      top: Math.min(20, Math.max(1, parseInt(o.t) || 5)),
+      bloqueos: (o.b || []).map(a => ({ nombre: texto(a[0]), dias: texto(a[1]).split(" ").filter(d => DIAS.includes(d)),
+                                        inicio: texto(a[2]), fin: texto(a[3]) })),
+      evitar: (o.x || []).map(texto),
+      fijos: o.j && typeof o.j === "object" ? o.j : {},
+    },
+    seleccion: Math.max(0, parseInt(o.o) || 0),
+  };
+}
+
 // ---8<--- fin de la lógica
 
 /* =====================================================================
@@ -819,6 +892,7 @@ let estado = {
   bloqueos: [],        // horas ocupadas: { nombre, dia, inicio, fin }
   semestre: null,      // { inicio, fin, festivos, alarma } para el calendario
   evitar: [],          // profesores que prefieres evitar
+  fijos: {},           // grupos fijos: { "calculo iii": "B" }
 };
 let resultado = null, seleccion = 0;
 
@@ -945,6 +1019,7 @@ function configuracion() {
     top: estado.top,
     bloqueos: revisarBloqueos().validos,
     evitar: estado.evitar,
+    fijos: estado.fijos,
   };
 }
 
@@ -1065,7 +1140,6 @@ function calcular() {
 
   const cfg = configuracion();
   const materias = Object.keys(cursos);
-  const combinaciones = materias.reduce((a, m) => a * cursos[m].length, materias.length ? 1 : 0);
 
   if (!materias.length) {
     resultado = null;
@@ -1081,7 +1155,8 @@ function calcular() {
   // Si alguna materia no cabe (todos sus grupos caen en horas ocupadas),
   // se arma igual el mejor horario con las materias que sí caben.
   const fuera = r.sinGrupo || [];
-  let posibles = combinaciones;
+  const fueraPorFijo = fuera.filter(m => r.fijados.includes(m));
+  let posibles = r.combinaciones;
   if (fuera.length) {
     const quedan = {};
     for (const m of materias) if (!fuera.includes(m)) quedan[m] = cursos[m];
@@ -1094,7 +1169,7 @@ function calcular() {
       return;
     }
     r = buscar(quedan, cfg);
-    posibles = Object.values(quedan).reduce((a, gs) => a * gs.length, 1);
+    posibles = r.combinaciones;
   }
   const ms = performance.now() - t0;
   resultado = { ...r, cfg, combinaciones: posibles, fuera };
@@ -1105,9 +1180,14 @@ function calcular() {
   if (fuera.length) {
     const cuales = enLista(fuera);
     falta.innerHTML = "";
-    falta.append(el("b", {}, fuera.length === 1 ? `${cuales} no cabe.` : `${cuales} no caben.`),
-      ` Todos sus grupos se cruzan con tus horas ocupadas, así que este es el mejor horario con las otras ${materias.length - fuera.length} materias. ` +
-      "Para incluirla, mueve una hora ocupada o agrega otro grupo de esa materia.");
+    falta.append(el("b", {}, fuera.length === 1 ? `${cuales} no cabe.` : `${cuales} no caben.`));
+    if (fueraPorFijo.length === fuera.length) {
+      falta.append(` ${fuera.length === 1 ? "El grupo que fijaste se cruza" : "Los grupos que fijaste se cruzan"} con tus horas ocupadas, así que este es el mejor horario con las otras ${materias.length - fuera.length} materias.`,
+        el("button", { onclick: () => soltarFijos(fueraPorFijo) }, fuera.length === 1 ? "Soltar ese grupo" : "Soltar esos grupos"));
+    } else {
+      falta.append(` Todos sus grupos se cruzan con tus horas ocupadas, así que este es el mejor horario con las otras ${materias.length - fuera.length} materias. ` +
+        "Para incluirla, mueve una hora ocupada o agrega otro grupo de esa materia.");
+    }
   }
 
   $("stats").textContent =
@@ -1116,8 +1196,11 @@ function calcular() {
 
   if (!r.mejores.length) {
     pintarVacio(cfg, "Estos grupos siempre se cruzan.",
-      "Ninguna combinación queda sin cruces. Revisa si dos materias solo tienen grupos a la misma hora y agrega otro grupo de alguna de ellas.",
+      r.fijados.length
+        ? "Ninguna combinación queda sin cruces con los grupos que fijaste."
+        : "Ninguna combinación queda sin cruces. Revisa si dos materias solo tienen grupos a la misma hora y agrega otro grupo de alguna de ellas.",
       "no hay horario sin cruces");
+    if (r.fijados.length) $("resumen").append(el("button", { onclick: () => soltarFijos() }, "Soltar los grupos fijos"));
     return;
   }
   pintarResultado();
@@ -1137,6 +1220,8 @@ function escribirTitular(d, sesiones, i) {
   partes.push(d.horasLunes ? `${fmtH(d.horasLunes)} de clase los lunes, que suelen ser festivo` : "ninguna clase los lunes");
   const fuera = d.temprano + d.tarde;
   partes.push(fuera ? `${fmtH(fuera)} fuera de tu rango de horas` : "todo dentro de tu rango de horas");
+  const nFijos = resultado.fijados.length;
+  if (nFijos) partes.push(nFijos === 1 ? "con el grupo que fijaste" : `con los ${nFijos} grupos que fijaste`);
   if (resultado.cfg.evitar && resultado.cfg.evitar.length) {
     partes.push(d.conEvitados.length
       ? `te toca con ${enLista(d.conEvitados.map(g => `${g.profesor} en ${g.materia}`))}, que querías evitar`
@@ -1158,6 +1243,7 @@ function pintarVacio(cfg, titulo, texto, notaMano) {
   $("opciones").innerHTML = "";
   $("detalle").innerHTML = "";
   $("exportar").style.display = "none";
+  $("btn-imagen").disabled = true;
   dibujarCuaderno([], cfg, null, notaMano);
 }
 
@@ -1170,6 +1256,7 @@ function pintarResultado() {
 
   escribirTitular(d, sesiones, seleccion);
   $("exportar").style.display = "";
+  $("btn-imagen").disabled = false;
 
   const opciones = $("opciones");
   opciones.innerHTML = "";
@@ -1188,14 +1275,36 @@ function pintarResultado() {
     const clases = g.sesiones.slice()
       .sort((a, b) => DIAS.indexOf(a.dia) - DIAS.indexOf(b.dia) || a.inicio - b.inicio)
       .map(s => `${NOMBRES_DIA[s.dia]} de ${fmtHora(s.inicio)} a ${fmtHora(s.fin)}${s.salon ? " en " + s.salon : ""}`);
+    const fijo = resultado.fijados.includes(g.materia);
     detalle.append(el("li", {},
       el("i", { class: "muestra", style: { background: color(g.materia) }, "aria-hidden": "true" }),
       el("div", {},
         el("b", {}, `${g.materia}, grupo ${g.nombre}`),
         g.profesor ? el("span", {}, `Con ${g.profesor}`,
           tieneProfeEvitado(g, cfg.evitar) ? el("span", { class: "evitado", style: { display: "inline" } }, " (lo querías evitar)") : null) : null,
-        el("span", {}, enLista(clases) + "."))));
+        el("span", {}, enLista(clases) + "."),
+        el("button", {
+          class: "fijar no-imprimir", "aria-pressed": fijo ? "true" : "false",
+          title: fijo ? "Dejar que el programa escoja el grupo de esta materia" : "Que esta materia siempre use este grupo",
+          onclick: () => fijo ? soltarFijos([g.materia]) : fijarGrupo(g),
+        }, fijo ? "Grupo fijo · soltar" : "Fijar este grupo"))));
   });
+}
+
+/* --- Grupos fijos --- */
+function fijarGrupo(g) {
+  estado.fijos = { ...estado.fijos, [claveMateria(g.materia)]: g.nombre };
+  guardarEstado();
+  seleccion = 0;
+  calcular();
+  avisar(`${g.materia} queda fija en el grupo ${g.nombre}. El resto del horario se arma alrededor.`);
+}
+function soltarFijos(materias) {
+  if (!materias) estado.fijos = {};
+  else { estado.fijos = { ...estado.fijos }; materias.forEach(m => delete estado.fijos[claveMateria(m)]); }
+  guardarEstado();
+  seleccion = 0;
+  calcular();
 }
 
 function elegirOpcion(i) {
@@ -1288,6 +1397,7 @@ $("archivo").onchange = e => {
   lector.onload = () => {
     try {
       estado.filas = parsearCSV(String(lector.result));
+      estado.fijos = {};
       seleccion = 0;
       pintarFilas();
       cambio();
@@ -1298,15 +1408,17 @@ $("archivo").onchange = e => {
   };
   lector.readAsText(archivo, "utf-8");
 };
-$("btn-descargar").onclick = () => {
-  const blob = new Blob(["﻿" + generarCSV(estado.filas)], { type: "text/csv;charset=utf-8" });
-  const a = el("a", { href: URL.createObjectURL(blob), download: "cursos.csv" });
+function descargar(blob, nombre) {
+  const a = el("a", { href: URL.createObjectURL(blob), download: nombre });
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-};
+}
+$("btn-descargar").onclick = () =>
+  descargar(new Blob(["﻿" + generarCSV(estado.filas)], { type: "text/csv;charset=utf-8" }), "cursos.csv");
 $("btn-ejemplo").onclick = () => {
   if (estado.filas.length && !confirm("Esto reemplaza tus materias por las del ejemplo. ¿Continuar?")) return;
   estado.filas = parsearCSV(EJEMPLO_CSV);
+  estado.fijos = {};
   seleccion = 0;
   pintarFilas();
   cambio();
@@ -1314,6 +1426,7 @@ $("btn-ejemplo").onclick = () => {
 $("btn-limpiar").onclick = () => {
   if (!confirm("¿Borrar todas las materias de la tabla?")) return;
   estado.filas = [];
+  estado.fijos = {};
   pintarFilas();
   cambio();
 };
@@ -1321,17 +1434,19 @@ $("btn-imprimir").onclick = () => window.print();
 
 /* --- Capturas con una IA --- */
 $("texto-prompt").textContent = PROMPT_FOTO;
-$("btn-copiar-prompt").onclick = async () => {
+async function copiarTexto(texto) {
+  try { await navigator.clipboard.writeText(texto); return true; } catch (e) { /* se intenta a la antigua */ }
+  const t = el("textarea", { style: { position: "fixed", opacity: 0 } });
+  t.value = texto;
+  document.body.append(t);
+  t.select();
   let ok = false;
-  try { await navigator.clipboard.writeText(PROMPT_FOTO); ok = true; } catch (e) { /* se intenta a la antigua */ }
-  if (!ok) {
-    const t = el("textarea", { style: { position: "fixed", opacity: 0 } });
-    t.value = PROMPT_FOTO;
-    document.body.append(t);
-    t.select();
-    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
-    t.remove();
-  }
+  try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  t.remove();
+  return ok;
+}
+$("btn-copiar-prompt").onclick = async () => {
+  const ok = await copiarTexto(PROMPT_FOTO);
   $("aviso-copiado").textContent = ok ? " Copiadas. Ahora pégalas en tu IA." : " No se pudieron copiar: ábrelas abajo y cópialas a mano.";
 };
 function importarPegado(reemplazar) {
@@ -1340,6 +1455,7 @@ function importarPegado(reemplazar) {
     const nuevas = extraerCSVDeRespuesta($("pegado").value);
     if (reemplazar && estado.filas.length && !confirm(`Esto reemplaza tus ${estado.filas.length} clases actuales. ¿Continuar?`)) return;
     estado.filas = reemplazar ? nuevas : estado.filas.concat(nuevas);
+    if (reemplazar) estado.fijos = {};
     seleccion = 0;
     pintarFilas();
     cambio();
@@ -1404,14 +1520,292 @@ $("btn-ics").onclick = () => {
     aviso.textContent = "Entre esas fechas no cae ninguna clase. Revisa el inicio y el fin del semestre.";
     return;
   }
-  const blob = new Blob([r.texto], { type: "text/calendar;charset=utf-8" });
-  const a = el("a", { href: URL.createObjectURL(blob), download: "mi-horario.ics" });
-  document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  descargar(new Blob([r.texto], { type: "text/calendar;charset=utf-8" }), "mi-horario.ics");
   aviso.className = "aviso ok";
   aviso.textContent = `Listo: ${r.clases} clases a la semana, del ${fechaBonita(sem.inicio)} al ${fechaBonita(sem.fin)}` +
     (sem.festivos ? (r.omitidos ? `, sin las ${r.omitidos} que caen en festivo.` : ", y ninguna cae en festivo.") : ".") +
     " Abre el archivo para agregarlo a tu calendario.";
+};
+
+/* --- Mensajito abajo --- */
+let temporizadorToast = null;
+function avisar(texto) {
+  const t = $("toast");
+  t.textContent = texto;
+  t.classList.add("visible");
+  clearTimeout(temporizadorToast);
+  temporizadorToast = setTimeout(() => t.classList.remove("visible"), 3500);
+}
+
+/* --- Compartir por enlace ---
+   Todo va en la parte de la dirección después de "#", que no se manda a ningún servidor.
+   "z" + base64url del JSON comprimido, o "j" + base64url del JSON si el navegador no comprime. */
+function aBase64Url(bytes) {
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function deBase64Url(texto) {
+  const s = atob(texto.replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(s, c => c.charCodeAt(0));
+}
+async function codificarEnlace(objeto) {
+  const bytes = new TextEncoder().encode(JSON.stringify(objeto));
+  if (typeof CompressionStream === "undefined") return "j" + aBase64Url(bytes);
+  const flujo = new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+  return "z" + aBase64Url(new Uint8Array(await new Response(flujo).arrayBuffer()));
+}
+async function decodificarEnlace(texto) {
+  const bytes = deBase64Url(texto.slice(1));
+  if (texto[0] === "j") return JSON.parse(new TextDecoder().decode(bytes));
+  if (texto[0] === "z") {
+    const flujo = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+    return JSON.parse(await new Response(flujo).text());
+  }
+  throw new Error("El enlace no es válido.");
+}
+
+$("btn-compartir").onclick = async () => {
+  let url;
+  try {
+    url = location.href.split("#")[0] + "#h=" + await codificarEnlace(empacarEstado(estado, seleccion));
+  } catch (e) {
+    avisar("No se pudo armar el enlace en este navegador.");
+    return;
+  }
+  // En el celular se abre el menú de compartir (WhatsApp, etc.); en el computador se copia
+  const celular = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  if (celular && navigator.share) {
+    try { await navigator.share({ title: "Mi horario", url }); return; }
+    catch (e) { if (e.name === "AbortError") return; }
+  }
+  if (await copiarTexto(url)) avisar("Enlace copiado. Quien lo abra verá tus materias y este horario.");
+  else window.prompt("Copia este enlace:", url);
+};
+
+const CLAVE_RESPALDO = CLAVE + "-respaldo";
+async function abrirEnlace() {
+  const m = location.hash.match(/^#h=(.+)$/);
+  if (!m) return;
+  history.replaceState(null, "", location.href.split("#")[0]);   // al recargar no se vuelve a abrir
+  const aviso = $("compartido");
+  aviso.innerHTML = "";
+  aviso.hidden = false;
+  let nuevo;
+  try {
+    nuevo = desempacarEstado(await decodificarEnlace(m[1]));
+  } catch (e) {
+    aviso.append("No se pudo abrir el horario compartido: el enlace está incompleto o dañado. Pide que te lo manden otra vez.");
+    return;
+  }
+  // Lo que tenías se guarda aparte, por si quieres volver
+  let respaldo = null;
+  try {
+    respaldo = localStorage.getItem(CLAVE);
+    if (respaldo) localStorage.setItem(CLAVE_RESPALDO, respaldo);
+  } catch (e) { /* sin almacenamiento */ }
+  estado = { ...estado, ...nuevo.estado };
+  seleccion = nuevo.seleccion;
+  guardarEstado();
+  pintarTodo();
+  aviso.append(el("b", {}, "Estás viendo un horario compartido."), " Puedes cambiar lo que quieras: se guarda como tuyo.");
+  if (respaldo) {
+    aviso.append(el("button", {
+      onclick: () => {
+        try { estado = { ...estado, ...JSON.parse(localStorage.getItem(CLAVE_RESPALDO)) }; } catch (e) { return; }
+        seleccion = 0;
+        guardarEstado();
+        pintarTodo();
+        aviso.hidden = true;
+        avisar("Volviste a tus materias.");
+      },
+    }, "Volver a mis materias"));
+  }
+}
+function pintarTodo() {
+  if (!estado.fijos || typeof estado.fijos !== "object") estado.fijos = {};
+  pintarFilas();
+  pintarBloqueos();
+  pintarPrefs();
+  calcular();
+}
+
+/* --- Descargar el horario como imagen (dibujado en un canvas, sin librerías) --- */
+function partirTexto(ctx, texto, ancho, maxLineas) {
+  const palabras = String(texto).split(/\s+/), lineas = [];
+  let actual = "";
+  for (const p of palabras) {
+    const prueba = actual ? actual + " " + p : p;
+    if (ctx.measureText(prueba).width <= ancho || !actual) actual = prueba;
+    else { lineas.push(actual); actual = p; }
+  }
+  if (actual) lineas.push(actual);
+  if (lineas.length > maxLineas) { lineas.length = maxLineas; lineas[maxLineas - 1] += "…"; }
+  return lineas.map(l => {
+    if (ctx.measureText(l).width <= ancho) return l;
+    while (l.length > 1 && ctx.measureText(l + "…").width > ancho) l = l.slice(0, -1);
+    return l.replace(/…$/, "") + "…";
+  });
+}
+
+function rectRedondo(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h);
+}
+
+async function imagenHorario() {
+  const { mejores, cfg } = resultado;
+  const op = mejores[seleccion];
+  const d = detalleCosto(op.grupos, cfg);
+  const color = colores();
+  const sesiones = op.grupos.flatMap(g => g.sesiones.map(s => ({ ...s, g })));
+  const ocupadas = cfg.bloqueos || [];
+  const todo = sesiones.concat(ocupadas);
+  const dias = DIAS.filter(dd => dd !== "Sab" || todo.some(s => s.dia === "Sab"));
+  const ini = Math.floor(Math.min(...todo.map(s => s.inicio)) / 60);
+  const fin = Math.ceil(Math.max(...todo.map(s => s.fin)) / 60);
+
+  const LETRA = '"Bricolage Grotesque", system-ui, "Segoe UI", sans-serif';
+  try { await Promise.all([document.fonts.load(`800 26px ${LETRA}`), document.fonts.load(`400 13px ${LETRA}`)]); } catch (e) { /* letra del sistema */ }
+  const TINTA = "#1b2a4a", SUAVE = "#5a6a88", LINEA = "#d5dfec", HORA = "#c9d7ea", PAPEL = "#fbfcfe", MARGEN = "#e5484d";
+
+  const grupos = op.grupos.slice().sort((a, b) => a.materia.localeCompare(b.materia));
+  const W = 820, M = 32, colHoras = 46, H = 46, cab = 32;
+  const yGrilla = M + 74, anchoDia = (W - 2 * M - colHoras) / dias.length;
+  const yCuerpo = yGrilla + cab, altoCuerpo = (fin - ini) * H;
+  const yLeyenda = yCuerpo + altoCuerpo + 30, lineaLeyenda = 26;
+  const alto = yLeyenda + grupos.length * lineaLeyenda + 34;
+
+  const escala = 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = W * escala;
+  canvas.height = alto * escala;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(escala, escala);
+  ctx.textBaseline = "top";
+
+  // Hoja cuadriculada con la línea roja del margen
+  ctx.fillStyle = PAPEL;
+  ctx.fillRect(0, 0, W, alto);
+  ctx.strokeStyle = "#eef3fa";
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= W; x += 16) { ctx.beginPath(); ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, alto); ctx.stroke(); }
+  for (let y = 0; y <= alto; y += 16) { ctx.beginPath(); ctx.moveTo(0, y + .5); ctx.lineTo(W, y + .5); ctx.stroke(); }
+  ctx.strokeStyle = MARGEN;
+  ctx.globalAlpha = .55;
+  ctx.beginPath(); ctx.moveTo(M - 12.5, 0); ctx.lineTo(M - 12.5, alto); ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // Título
+  const conClase = DIAS.filter(dd => sesiones.some(s => s.dia === dd)).map(dd => NOMBRES_DIA[dd].toLowerCase());
+  ctx.fillStyle = TINTA;
+  ctx.font = `800 26px ${LETRA}`;
+  ctx.fillText(partirTexto(ctx, `Clases ${enLista(conClase)}.`, W - 2 * M, 1)[0], M, M);
+  const sub = [];
+  if (!d.viernes) sub.push("Viernes libre");
+  sub.push(d.huecos ? `${fmtH(d.huecos)} de hueco` : "Sin huecos");
+  sub.push(d.horasLunes ? `${fmtH(d.horasLunes)} los lunes` : "Lunes libre");
+  ctx.fillStyle = SUAVE;
+  ctx.font = `500 15px ${LETRA}`;
+  ctx.fillText(sub.join("  ·  "), M, M + 36);
+
+  // Cabecera de días y columna de horas
+  ctx.fillStyle = PAPEL;
+  ctx.fillRect(M, yGrilla, W - 2 * M, cab + altoCuerpo);
+  ctx.fillStyle = TINTA;
+  ctx.font = `700 14px ${LETRA}`;
+  ctx.textAlign = "center";
+  dias.forEach((dd, k) => ctx.fillText(NOMBRES_DIA[dd], M + colHoras + anchoDia * (k + .5), yGrilla + 9));
+  ctx.textAlign = "right";
+  ctx.font = `500 11px ${LETRA}`;
+  for (let h = ini; h <= fin; h++) {
+    const y = yCuerpo + (h - ini) * H;
+    ctx.strokeStyle = h === ini ? LINEA : HORA;
+    ctx.beginPath(); ctx.moveTo(M + colHoras, y + .5); ctx.lineTo(W - M, y + .5); ctx.stroke();
+    if (h < fin) { ctx.fillStyle = SUAVE; ctx.fillText(`${h}:00`, M + colHoras - 8, y + 3); }
+  }
+  ctx.textAlign = "left";
+  ctx.strokeStyle = LINEA;
+  for (let k = 0; k <= dias.length; k++) {
+    const x = Math.round(M + colHoras + anchoDia * k) + .5;
+    ctx.beginPath(); ctx.moveTo(x, yGrilla); ctx.lineTo(x, yCuerpo + altoCuerpo); ctx.stroke();
+  }
+
+  const yMin = min => yCuerpo + (min / 60 - ini) * H;
+  const xDia = dd => M + colHoras + anchoDia * dias.indexOf(dd);
+
+  // Horas ocupadas: rayadas
+  for (const b of ocupadas) {
+    if (!dias.includes(b.dia)) continue;
+    const x = xDia(b.dia) + 4, y = yMin(b.inicio) + 2, w = anchoDia - 8, h = yMin(b.fin) - yMin(b.inicio) - 4;
+    ctx.save();
+    rectRedondo(ctx, x, y, w, h, 6);
+    ctx.fillStyle = "rgba(27,42,74,.05)";
+    ctx.fill();
+    ctx.clip();
+    ctx.strokeStyle = "rgba(27,42,74,.13)";
+    for (let k = -h; k < w; k += 9) { ctx.beginPath(); ctx.moveTo(x + k, y + h); ctx.lineTo(x + k + h, y); ctx.stroke(); }
+    ctx.fillStyle = SUAVE;
+    ctx.font = `600 12px ${LETRA}`;
+    ctx.fillText(partirTexto(ctx, b.nombre || "Ocupado", w - 12, 1)[0], x + 6, y + 6);
+    ctx.restore();
+  }
+
+  // Clases: bloques de resaltador
+  for (const s of sesiones) {
+    const x = xDia(s.dia) + 4, y = yMin(s.inicio) + 2, w = anchoDia - 8, h = yMin(s.fin) - yMin(s.inicio) - 4;
+    ctx.save();
+    rectRedondo(ctx, x, y, w, h, 6);
+    ctx.fillStyle = color(s.g.materia) || "#ffe45c";
+    ctx.fill();
+    ctx.clip();
+    ctx.fillStyle = TINTA;
+    ctx.font = `700 13px ${LETRA}`;
+    const lineasMateria = partirTexto(ctx, s.g.materia, w - 12, h > 60 ? 2 : 1);
+    let yy = y + 6;
+    for (const l of lineasMateria) { ctx.fillText(l, x + 6, yy); yy += 16; }
+    ctx.font = `400 12px ${LETRA}`;
+    const extra = [`${fmtHora(s.inicio)}–${fmtHora(s.fin)} · ${s.g.nombre}`];
+    if (s.salon) extra.push(s.salon);
+    for (const l of extra) {
+      if (yy + 14 > y + h) break;
+      ctx.fillText(partirTexto(ctx, l, w - 12, 1)[0], x + 6, yy);
+      yy += 15;
+    }
+    ctx.restore();
+  }
+
+  // Leyenda: materia, grupo y profesor
+  grupos.forEach((g, i) => {
+    const y = yLeyenda + i * lineaLeyenda;
+    rectRedondo(ctx, M, y + 2, 14, 14, 4);
+    ctx.fillStyle = color(g.materia) || "#ffe45c";
+    ctx.fill();
+    ctx.fillStyle = TINTA;
+    ctx.font = `700 14px ${LETRA}`;
+    ctx.fillText(g.materia, M + 24, y);
+    const ancho = ctx.measureText(g.materia).width;
+    ctx.fillStyle = SUAVE;
+    ctx.font = `400 14px ${LETRA}`;
+    const resto = `grupo ${g.nombre}` + (g.profesor ? ` · ${g.profesor}` : "");
+    ctx.fillText(partirTexto(ctx, resto, W - 2 * M - 36 - ancho, 1)[0], M + 24 + ancho + 10, y);
+  });
+
+  ctx.fillStyle = SUAVE;
+  ctx.font = `400 11px ${LETRA}`;
+  ctx.textAlign = "right";
+  ctx.fillText("Hecho con Creador de horarios", W - M, alto - 22);
+
+  return new Promise((ok, mal) => canvas.toBlob(b => b ? ok(b) : mal(new Error("sin imagen")), "image/png"));
+}
+
+$("btn-imagen").onclick = async () => {
+  if (!resultado || !resultado.mejores.length) return;
+  try {
+    descargar(await imagenHorario(), "mi-horario.png");
+  } catch (e) {
+    avisar("No se pudo crear la imagen en este navegador.");
+  }
 };
 
 cargarEstado();
@@ -1419,9 +1813,11 @@ if (!Array.isArray(estado.bloqueos)) estado.bloqueos = [];
 prepararCalendario();
 pintarFilas();
 if (!Array.isArray(estado.evitar)) estado.evitar = [];
+if (!estado.fijos || typeof estado.fijos !== "object") estado.fijos = {};
 pintarBloqueos();
 pintarPrefs();
 calcular();
+abrirEnlace();
 </script>
 </body>
 </html>

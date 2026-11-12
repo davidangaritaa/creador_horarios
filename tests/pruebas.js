@@ -7,6 +7,7 @@
  *     combinaciones (fuerza bruta), en cientos de casos al azar con horas
  *     ocupadas y profesores evitados;
  *   - huecos, horas ocupadas, premio del lunes, viernes y profesores;
+ *   - grupos fijos y el enlace para compartir;
  *   - lectura de CSV y de respuestas de una IA;
  *   - festivos de Colombia y el archivo de calendario (.ics).
  *
@@ -26,7 +27,7 @@ assert(inicio >= 0 && fin > inicio, "No encontré las marcas de la lógica en in
 const L = vm.runInNewContext(html.slice(inicio, fin) + `
 ;({ DIAS, PESOS_INICIALES, aMinutos, seCruzan, grupoChoca, chocaConBloqueos, horasDeHueco,
     detalleCosto, buscar, construirCursos, parsearCSV, extraerCSVDeRespuesta, EJEMPLO_CSV,
-    tieneProfeEvitado, festivosColombia, generarICS });`, {});
+    tieneProfeEvitado, festivosColombia, generarICS, empacarEstado, desempacarEstado });`, {});
 
 const CFG = (extra = {}) => ({ pesos: { ...L.PESOS_INICIALES }, horaInicio: 480, horaFin: 1080, top: 5, bloqueos: [], evitar: [], ...extra });
 const casi = (a, b) => Math.abs(a - b) < 1e-9;
@@ -40,6 +41,12 @@ const prueba = (nombre, fn) => pruebas.push({ nombre, fn });
 
 // ---------- Fuerza bruta: prueba TODAS las combinaciones ----------
 function fuerzaBruta(cursos, cfg) {
+  // Un grupo fijo deja a su materia con solo ese grupo (si existe)
+  const fijos = cfg.fijos || {};
+  cursos = Object.fromEntries(Object.entries(cursos).map(([m, gs]) => {
+    const f = fijos[m.toLowerCase()], solo = gs.filter(g => f && g.nombre.toLowerCase() === f.toLowerCase());
+    return [m, solo.length ? solo : gs];
+  }));
   const materias = Object.keys(cursos);
   let mejor = Infinity;
   (function recorrer(i, elegidos) {
@@ -91,7 +98,8 @@ prueba("la poda da el mismo óptimo que la fuerza bruta (500 casos al azar)", ()
       const ini = rnd.entero(7, 18) * 60 + rnd.elegir([0, 30]);
       bloqueos.push({ dia: rnd.elegir(L.DIAS.slice(0, 5)), inicio: ini, fin: ini + rnd.elegir([60, 120, 240]) });
     }
-    const cfg = CFG({ top: rnd.elegir([1, 3]), bloqueos, evitar: rnd.elegir([[], [], ["rojas"], ["PEREZ", "Díaz"]]) });
+    const cfg = CFG({ top: rnd.elegir([1, 3]), bloqueos, evitar: rnd.elegir([[], [], ["rojas"], ["PEREZ", "Díaz"]]),
+                      fijos: rnd.elegir([{}, {}, { m0: "g1" }, { m1: "G0", m2: "G2" }, { m0: "no existe" }]) });
     // Pesos al azar: así cada regla pesa lo suficiente para notar si la poda se equivoca
     cfg.pesos = { hueco: rnd.elegir([1, 0.2, 0]), temprano: rnd.elegir([2, 0.5]), tarde: rnd.elegir([2, 0.5]),
                   dia: rnd.elegir([0.5, 0, 3]), viernes: rnd.elegir([1.5, 0, 4]), lunes: rnd.elegir([0.5, 3, 6]),
@@ -143,6 +151,38 @@ prueba("profesores que se quieren evitar", () => {
   // Si el único grupo es con ese profesor, la materia se queda
   const solo = { Etica: [{ materia: "Etica", nombre: "A", profesor: "Mora", sesiones: [S("Mar", "12:00", "14:00")] }] };
   assert.strictEqual(L.buscar(solo, CFG({ evitar: ["Mora"] })).mejores[0].grupos[0].profesor, "Mora");
+});
+
+prueba("grupos fijos", () => {
+  const { cursos } = L.construirCursos(L.parsearCSV(L.EJEMPLO_CSV));
+  const libre = L.buscar(cursos, CFG()).mejores[0].grupos.find(g => g.materia === "Calculo III");
+  const otro = cursos["Calculo III"].find(g => g.nombre !== libre.nombre);
+  const cfg = CFG({ fijos: { "calculo iii": otro.nombre.toLowerCase() } });   // sin importar mayúsculas
+  const r = L.buscar(cursos, cfg);
+  assert.strictEqual(r.mejores[0].grupos.find(g => g.materia === "Calculo III").nombre, otro.nombre);
+  assert(r.mejores.every(o => o.grupos.find(g => g.materia === "Calculo III").nombre === otro.nombre));
+  igual(r.fijados, ["Calculo III"]);
+  assert(casi(r.mejores[0].costo, fuerzaBruta(cursos, cfg)));
+  // Un grupo fijo que ya no existe no se aplica
+  igual(L.buscar(cursos, CFG({ fijos: { "calculo iii": "zzz" } })).fijados, []);
+  // Si el grupo fijo cae en una hora ocupada, la materia no cabe
+  const s = otro.sesiones[0];
+  const r2 = L.buscar(cursos, CFG({ fijos: cfg.fijos, bloqueos: [{ dia: s.dia, inicio: s.inicio, fin: s.fin }] }));
+  igual(r2.sinGrupo, ["Calculo III"]);
+});
+
+prueba("enlace para compartir: ida y vuelta", () => {
+  const estado = {
+    filas: L.parsearCSV(L.EJEMPLO_CSV), pesos: { ...L.PESOS_INICIALES, hueco: 3 }, horaInicio: "07:00", horaFin: "17:30", top: 3,
+    bloqueos: [{ nombre: "Trabajo, turno", dias: ["Lun", "Mar"], inicio: "06:00", fin: "12:00" }],
+    evitar: ["Pérez"], fijos: { "calculo iii": "B" },
+  };
+  const paquete = JSON.parse(JSON.stringify(L.empacarEstado(estado, 2)));   // como viaja en el enlace
+  const { estado: vuelta, seleccion } = L.desempacarEstado(paquete);
+  igual(vuelta, JSON.parse(JSON.stringify(estado)));
+  assert.strictEqual(seleccion, 2);
+  assert.throws(() => L.desempacarEstado({ v: 9 }));
+  assert.throws(() => L.desempacarEstado(null));
 });
 
 prueba("lectura de CSV (coma, punto y coma, tildes, a. m. / p. m.)", () => {
