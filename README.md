@@ -112,6 +112,8 @@ Puedes armar el archivo en Excel y guardarlo como **CSV UTF-8**.
 
 ## ¿Cómo funciona por dentro?
 
+El detalle completo (mapa de funciones, formato del enlace, diseño) está en [`docs/PROYECTO.md`](docs/PROYECTO.md).
+
 Todo el cálculo está en [`index.html`](index.html), en JavaScript, y usa **backtracking con poda**
 (ramificación y poda):
 
@@ -145,7 +147,7 @@ creador-horarios/
 │   ├── cursos.csv       # ejemplo: 5 materias de un semestre, 4 grupos cada una
 │   └── foto-*.png       # capturas de muestra para probar la lectura con IA
 ├── tests/pruebas.js     # pruebas (se corren con Node.js)
-└── docs/                # imágenes del README
+└── docs/                # imágenes del README y PROYECTO.md (cómo está hecho por dentro)
 ```
 
 ## Pruebas
