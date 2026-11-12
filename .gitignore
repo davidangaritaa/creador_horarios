@@ -2,3 +2,8 @@
 Thumbs.db
 # imagen que generaba la antigua versión en Python
 horario.png
+
+# Configuración de Obsidian (si abres la carpeta como bóveda)
+.obsidian/
+# Notas personales (bóveda de Obsidian): no se suben
+notas/
