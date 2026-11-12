@@ -72,7 +72,7 @@ prueba("el ejemplo da el horario esperado", () => {
   assert.strictEqual(errores.length, 0);
   assert.strictEqual(Object.keys(cursos).length, 5);
   const r = L.buscar(cursos, CFG());
-  assert(casi(r.mejores[0].costo, -1.5), `costo ${r.mejores[0].costo}`);
+  assert(casi(r.mejores[0].costo, 0), `costo ${r.mejores[0].costo}`);
   assert(casi(r.mejores[0].costo, fuerzaBruta(cursos, CFG())));
 });
 
@@ -124,7 +124,7 @@ prueba("una materia sin grupos libres se reporta", () => {
   const { cursos } = L.construirCursos(L.parsearCSV(L.EJEMPLO_CSV));
   const lunAVie = ["Lun", "Mar", "Mie", "Jue", "Vie"].map(d => S(d, "06:00", "12:00"));
   const r = L.buscar(cursos, CFG({ bloqueos: lunAVie }));
-  igual(r.sinGrupo, ["Calculo III"]);
+  igual(r.sinGrupo, ["Cálculo III"]);
   assert.strictEqual(r.mejores.length, 0);
 });
 
@@ -147,7 +147,7 @@ prueba("profesores que se quieren evitar", () => {
   // En el ejemplo, evitando a Pérez y Smith se escogen otros grupos
   const { cursos } = L.construirCursos(L.parsearCSV(L.EJEMPLO_CSV));
   const r = L.buscar(cursos, CFG({ evitar: ["Perez", "Smith"] }));
-  assert(r.mejores[0].grupos.every(g => !["Perez", "Smith"].includes(g.profesor)));
+  assert(r.mejores[0].grupos.every(g => !L.tieneProfeEvitado(g, ["Perez", "Smith"])));
   // Si el único grupo es con ese profesor, la materia se queda
   const solo = { Etica: [{ materia: "Etica", nombre: "A", profesor: "Mora", sesiones: [S("Mar", "12:00", "14:00")] }] };
   assert.strictEqual(L.buscar(solo, CFG({ evitar: ["Mora"] })).mejores[0].grupos[0].profesor, "Mora");
@@ -155,27 +155,27 @@ prueba("profesores que se quieren evitar", () => {
 
 prueba("grupos fijos", () => {
   const { cursos } = L.construirCursos(L.parsearCSV(L.EJEMPLO_CSV));
-  const libre = L.buscar(cursos, CFG()).mejores[0].grupos.find(g => g.materia === "Calculo III");
-  const otro = cursos["Calculo III"].find(g => g.nombre !== libre.nombre);
-  const cfg = CFG({ fijos: { "calculo iii": otro.nombre.toLowerCase() } });   // sin importar mayúsculas
+  const libre = L.buscar(cursos, CFG()).mejores[0].grupos.find(g => g.materia === "Cálculo III");
+  const otro = cursos["Cálculo III"].find(g => g.nombre !== libre.nombre);
+  const cfg = CFG({ fijos: { "cálculo iii": otro.nombre.toLowerCase() } });   // sin importar mayúsculas
   const r = L.buscar(cursos, cfg);
-  assert.strictEqual(r.mejores[0].grupos.find(g => g.materia === "Calculo III").nombre, otro.nombre);
-  assert(r.mejores.every(o => o.grupos.find(g => g.materia === "Calculo III").nombre === otro.nombre));
-  igual(r.fijados, ["Calculo III"]);
+  assert.strictEqual(r.mejores[0].grupos.find(g => g.materia === "Cálculo III").nombre, otro.nombre);
+  assert(r.mejores.every(o => o.grupos.find(g => g.materia === "Cálculo III").nombre === otro.nombre));
+  igual(r.fijados, ["Cálculo III"]);
   assert(casi(r.mejores[0].costo, fuerzaBruta(cursos, cfg)));
   // Un grupo fijo que ya no existe no se aplica
-  igual(L.buscar(cursos, CFG({ fijos: { "calculo iii": "zzz" } })).fijados, []);
+  igual(L.buscar(cursos, CFG({ fijos: { "cálculo iii": "zzz" } })).fijados, []);
   // Si el grupo fijo cae en una hora ocupada, la materia no cabe
   const s = otro.sesiones[0];
   const r2 = L.buscar(cursos, CFG({ fijos: cfg.fijos, bloqueos: [{ dia: s.dia, inicio: s.inicio, fin: s.fin }] }));
-  igual(r2.sinGrupo, ["Calculo III"]);
+  igual(r2.sinGrupo, ["Cálculo III"]);
 });
 
 prueba("enlace para compartir: ida y vuelta", () => {
   const estado = {
     filas: L.parsearCSV(L.EJEMPLO_CSV), pesos: { ...L.PESOS_INICIALES, hueco: 3 }, horaInicio: "07:00", horaFin: "17:30", top: 3,
     bloqueos: [{ nombre: "Trabajo, turno", dias: ["Lun", "Mar"], inicio: "06:00", fin: "12:00" }],
-    evitar: ["Pérez"], fijos: { "calculo iii": "B" },
+    evitar: ["Pérez"], fijos: { "cálculo iii": "B" },
   };
   const paquete = JSON.parse(JSON.stringify(L.empacarEstado(estado, 2)));   // como viaja en el enlace
   const { estado: vuelta, seleccion } = L.desempacarEstado(paquete);

@@ -1,24 +1,35 @@
 materia,grupo,dia,inicio,fin,profesor,salon
-Calculo III,A,Lun,08:00,10:00,Perez,A-201
-Calculo III,A,Mie,08:00,10:00,Perez,A-201
-Calculo III,B,Mar,10:00,12:00,Gomez,A-305
-Calculo III,B,Jue,10:00,12:00,Gomez,A-305
-Calculo III,C,Lun,06:00,08:00,Rojas,B-104
-Calculo III,C,Mie,06:00,08:00,Rojas,B-104
-Bases de Datos,A,Lun,10:00,12:00,Diaz,Lab-3
-Bases de Datos,A,Mie,10:00,12:00,Diaz,Lab-3
-Bases de Datos,B,Mar,14:00,16:00,Ortiz,Lab-1
-Bases de Datos,B,Jue,14:00,16:00,Ortiz,Lab-1
-Bases de Datos,C,Mar,18:00,20:00,Ortiz,Lab-1
-Bases de Datos,C,Jue,18:00,20:00,Ortiz,Lab-1
-Redes,A,Mar,08:00,10:00,Suarez,C-210
-Redes,A,Jue,08:00,10:00,Suarez,C-210
-Redes,B,Lun,14:00,16:00,Suarez,C-210
-Redes,B,Mie,14:00,16:00,Suarez,C-210
-Ingles IV,A,Vie,08:00,11:00,Smith,D-101
-Ingles IV,B,Vie,13:00,16:00,Brown,D-102
-Ingles IV,C,Lun,12:00,14:00,Smith,D-101
-Ingles IV,C,Mie,12:00,13:00,Smith,D-101
-Etica,A,Mar,12:00,14:00,Mora,E-001
-Etica,B,Vie,11:00,13:00,Mora,E-001
-Etica,C,Jue,16:00,18:00,Mora,E-001
+Cálculo III,A,Lun,07:00,09:00,Andrés Pérez,A-201
+Cálculo III,A,Mie,07:00,09:00,Andrés Pérez,A-201
+Cálculo III,B,Mar,09:00,11:00,Laura Gómez,A-305
+Cálculo III,B,Jue,09:00,11:00,Laura Gómez,A-305
+Cálculo III,C,Lun,10:00,12:00,Carlos Rojas,B-104
+Cálculo III,C,Mie,10:00,12:00,Carlos Rojas,B-104
+Cálculo III,D,Mar,07:00,09:00,Laura Gómez,A-305
+Cálculo III,D,Vie,07:00,09:00,Laura Gómez,A-305
+Bases de Datos,A,Lun,09:00,11:00,Diana Díaz,Lab-3
+Bases de Datos,A,Mie,09:00,11:00,Diana Díaz,Lab-3
+Bases de Datos,B,Mar,14:00,16:00,Jorge Ortiz,Lab-1
+Bases de Datos,B,Jue,14:00,16:00,Jorge Ortiz,Lab-1
+Bases de Datos,C,Mar,18:00,20:00,Jorge Ortiz,Lab-1
+Bases de Datos,C,Jue,18:00,20:00,Jorge Ortiz,Lab-1
+Bases de Datos,D,Mie,14:00,16:00,Diana Díaz,Lab-3
+Bases de Datos,D,Vie,09:00,11:00,Diana Díaz,Lab-3
+Redes de Computadores,A,Mar,07:00,09:00,Felipe Suárez,C-210
+Redes de Computadores,A,Jue,07:00,09:00,Felipe Suárez,C-210
+Redes de Computadores,B,Lun,14:00,16:00,Felipe Suárez,C-210
+Redes de Computadores,B,Mie,14:00,16:00,Felipe Suárez,C-210
+Redes de Computadores,C,Lun,16:00,18:00,Natalia Herrera,C-212
+Redes de Computadores,C,Jue,16:00,18:00,Natalia Herrera,C-212
+Redes de Computadores,D,Mie,11:00,13:00,Natalia Herrera,C-212
+Redes de Computadores,D,Vie,11:00,13:00,Natalia Herrera,C-212
+Inglés IV,A,Vie,08:00,11:00,John Smith,D-101
+Inglés IV,B,Sab,08:00,11:00,Emily Brown,D-102
+Inglés IV,C,Lun,12:00,14:00,John Smith,D-101
+Inglés IV,C,Mie,12:00,13:00,John Smith,D-101
+Inglés IV,D,Mar,11:00,12:30,Emily Brown,D-102
+Inglés IV,D,Jue,11:00,12:30,Emily Brown,D-102
+Ética Profesional,A,Mar,12:00,14:00,Rosa Mora,E-001
+Ética Profesional,B,Vie,11:00,13:00,Rosa Mora,E-001
+Ética Profesional,C,Jue,16:00,18:00,Pablo Castro,E-003
+Ética Profesional,D,Sab,11:00,13:00,Pablo Castro,E-003

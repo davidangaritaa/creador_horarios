@@ -6,7 +6,7 @@ Además premia tener el **viernes libre** y las clases de los **lunes**, que en 
 
 **Úsalo en el navegador, sin instalar nada:** https://davidangaritaa.github.io/creador-horarios/
 
-![La versión web: el mejor horario dibujado en un cuaderno cuadriculado](docs/web.png)
+![La versión web: el mejor horario de la semana, con un color por materia](docs/web.png)
 
 ## ¿Qué hace?
 
@@ -38,9 +38,9 @@ a viernes de 6 a 8 a. m."), lo marcas como hora ocupada, para uno o varios días
 clases **no cuenta como hueco**.
 
 **Grupos fijos.** Si ya tienes asegurado un grupo, o quieres ver una materia sí o sí con cierto
-profesor, lo escoges en la sección **"Grupos fijos"** (un menú por materia) o tocas
-**📌 Fijar este grupo** debajo del horario: esa materia siempre usa ese grupo y el resto del
-horario se arma alrededor.
+profesor, lo escoges en **"Tus grupos"**, justo debajo del horario: cada materia tiene un menú con
+todos sus grupos (aunque no hayan salido en ninguna opción). Esa materia queda fija en ese grupo y el
+resto del horario se arma alrededor.
 
 Los puntos de cada regla y el rango de horas se cambian en la misma página, en **"Cómo se califica"**.
 
@@ -50,23 +50,26 @@ No hay que instalar nada. Abre [`index.html`](index.html) con doble clic, o entr
 **https://davidangaritaa.github.io/creador-horarios/**.
 
 - **Arriba ves el resultado**: un titular que describe el mejor horario (por ejemplo, *"Clases lunes,
-  martes y miércoles. Viernes libre."*) y el horario dibujado en un cuaderno cuadriculado, con un color
-  de resaltador por materia. Puedes comparar las mejores opciones e imprimirlo o guardarlo en PDF.
-- **Debajo del horario** está cada grupo escogido, con un botón para **fijarlo**.
-- **En "Grupos fijos"** escoges, materia por materia, un grupo que quieres sí o sí (aunque no haya
-  salido en ninguna opción). Los grupos fijos llevan un 📌 en el horario.
+  martes y miércoles. Viernes libre."*) y el horario de la semana en un tablero, con un color y una sigla
+  por materia (como las líneas de un mapa de transporte). Puedes comparar las mejores opciones e imprimirlo o guardarlo en PDF.
+- **La primera vez** ves un horario de ejemplo, con botones para **empezar con tus materias** o
+  **pasar capturas del portal**.
+- **En "Tus grupos"**, debajo del horario, está cada materia con el grupo escogido y un menú para
+  cambiarlo: el que escojas queda fijo y lleva una chincheta en el horario.
+- **En "Profesores que prefieres evitar"**, también debajo del horario, aparecen los profesores de
+  tu tabla: tocas los que no quieres y quedan tachados.
+- **Abajo pones tus datos en tres pasos** (los dos últimos son opcionales). Mientras editas,
+  el botón **Ver mi horario** te lleva de vuelta arriba.
 - **Compartir** copia un enlace con tus materias y el horario que estás viendo (en el celular abre
   el menú para mandarlo por WhatsApp). Quien lo abra ve lo mismo que tú; si ya tenía sus propias
   materias, quedan guardadas y puede volver a ellas con un botón.
 - **Descargar imagen** guarda el horario como imagen PNG, con los colores, los salones y la lista
   de grupos y profesores, lista para mandar o ponerla de fondo de pantalla.
-- **En "Tus materias"** escribes los grupos en la tabla o cargas tu CSV (también acepta el CSV con `;`
+- **En "1. Tus materias"** escribes los grupos en la tabla o cargas tu CSV (también acepta el CSV con `;`
   que guarda Excel en español). El horario se recalcula solo con cada cambio.
-- **En "Tus horas ocupadas"** marcas el trabajo, el deporte o lo que no puedas mover. Cada una
+- **En "2. Tus horas ocupadas"** marcas el trabajo, el deporte o lo que no puedas mover. Cada una
   puede valer para varios días: eliges los días con botones o con el atajo **Lun a Vie**.
-- **En "Profesores que prefieres evitar"** aparecen los profesores de tu tabla: tocas los que no
-  quieres y quedan tachados.
-- **En "Cómo se califica"** ajustas las reglas, escritas como frases: cuánto pesan los huecos,
+- **En "3. Cómo se califica"** ajustas las reglas, escritas como frases: cuánto pesan los huecos,
   el rango de horas, el viernes libre y el premio del lunes.
 - **"Pasar este horario a tu calendario"** descarga un archivo `.ics` con las clases de todo el
   semestre para Google Calendar, Outlook o el celular: se repiten cada semana, **se saltan los
@@ -96,9 +99,9 @@ Para cargar un archivo con **Cargar CSV** (o descargarlo con **Descargar CSV**),
 
 ```csv
 materia,grupo,dia,inicio,fin,profesor,salon
-Calculo III,A,Lun,08:00,10:00,Perez,A-201
-Calculo III,A,Mie,08:00,10:00,Perez,A-201
-Calculo III,B,Mar,10:00,12:00,Gomez,A-305
+Cálculo III,A,Lun,07:00,09:00,Andrés Pérez,A-201
+Cálculo III,A,Mie,07:00,09:00,Andrés Pérez,A-201
+Cálculo III,B,Mar,09:00,11:00,Laura Gómez,A-305
 ```
 
 - `dia`: `Lun`, `Mar`, `Mie`, `Jue`, `Vie` o `Sab`
@@ -139,7 +142,7 @@ Sin poda habría que revisar el producto de los grupos de todas las materias
 creador-horarios/
 ├── index.html           # toda la aplicación: algoritmo, festivos, calendario .ics e interfaz
 ├── ejemplos/
-│   ├── cursos.csv       # datos de ejemplo
+│   ├── cursos.csv       # ejemplo: 5 materias de un semestre, 4 grupos cada una
 │   └── foto-*.png       # capturas de muestra para probar la lectura con IA
 ├── tests/pruebas.js     # pruebas (se corren con Node.js)
 └── docs/                # imágenes del README
