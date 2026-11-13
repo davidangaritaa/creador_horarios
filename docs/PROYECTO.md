@@ -13,7 +13,7 @@ Página web que arma el **mejor horario del semestre** a partir de los grupos (N
 1. El estudiante escribe sus materias y los grupos de cada una (día, hora, profesor, salón). También puede cargar un CSV o pasar capturas del portal por una IA.
 2. La página prueba combinaciones, **un grupo por materia**, y descarta las que tienen cruces.
 3. A cada horario le pone un **puntaje** (menos es mejor) y muestra los mejores.
-4. El resultado se puede ajustar (fijar grupos, evitar profesores, horas ocupadas), compartir por enlace, descargar como imagen, imprimir o pasar al calendario (`.ics`).
+4. El resultado se puede ajustar (fijar grupos, evitar profesores, horas ocupadas, marcar lo que no pudiste matricular), compartir por enlace, descargar como imagen, imprimir o pasar al calendario (`.ics`).
 
 ---
 
@@ -21,7 +21,7 @@ Página web que arma el **mejor horario del semestre** a partir de los grupos (N
 
 ```
 creador-horarios/
-├── index.html           # TODA la aplicación (~2.070 líneas): estilos, lógica e interfaz
+├── index.html           # TODA la aplicación (~2.290 líneas): estilos, lógica e interfaz
 ├── tests/pruebas.js     # 13 pruebas con Node.js (toman la lógica de index.html)
 ├── ejemplos/
 │   ├── cursos.csv       # el mismo ejemplo que trae la página (5 materias × 4 grupos)
@@ -65,7 +65,8 @@ Está en `buscar(cursos, cfg)`.
 ```mermaid
 flowchart TD
     A[Filas de la tabla] --> B[construirCursos: materias → grupos → sesiones]
-    B --> C[Quitar grupos que chocan con horas ocupadas]
+    B --> B2[Sacar materias que no vas a ver y grupos sin cupo]
+    B2 --> C[Quitar grupos que chocan con horas ocupadas]
     C --> D[Si hay grupo fijo: dejar solo ese]
     D --> E{¿Alguna materia sin grupos?}
     E -- sí --> F[Avisar 'no cabe' y seguir con las demás]
@@ -96,7 +97,7 @@ flowchart TD
 
 El archivo tiene tres partes: estilos (`<style>`), marcado (HTML) y un `<script>`. Dentro del script, la **lógica** va entre marcadores para que las pruebas la puedan extraer.
 
-### Lógica (desde la línea ~530 hasta `// ---8<--- fin de la lógica`)
+### Lógica (desde la línea ~557 hasta `// ---8<--- fin de la lógica`)
 
 | Función | Para qué |
 |---|---|
@@ -199,7 +200,7 @@ node tests/pruebas.js
 
 Las 13 pruebas comprueban que:
 
-- la poda encuentra **el mismo óptimo que la fuerza bruta** en 500 casos al azar (con horas ocupadas, profesores, grupos fijos y pesos distintos);
+- la poda encuentra **el mismo óptimo que la fuerza bruta** en 500 casos al azar (con horas ocupadas, profesores, grupos fijos, grupos sin cupo, materias quitadas y pesos distintos);
 - los huecos, las horas ocupadas y el premio del lunes se cuentan bien;
 - los grupos fijos se respetan;
 - los grupos sin cupo y las materias quitadas no entran;
@@ -234,6 +235,8 @@ Las 13 pruebas comprueban que:
 | `d7baec3` | Fijar grupos, compartir, imagen |
 | `9c407c3` | Rediseño (tablero, siglas, "Tus grupos") |
 | `e34d1b9` | Ignorar Obsidian |
+| `41955e3` | Documento del proyecto (`docs/PROYECTO.md`) |
+| `a105faa` | No pude matricularla (grupo sin cupo o materia que no vas a ver) |
 
 El historial completo: `git log`.
 

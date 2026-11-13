@@ -61,6 +61,9 @@ No hay que instalar nada. Abre [`index.html`](index.html) con doble clic, o entr
   **pasar capturas del portal**.
 - **En "Tus grupos"**, debajo del horario, está cada materia con el grupo escogido y un menú para
   cambiarlo: el que escojas queda fijo y lleva una chincheta en el horario.
+- **¿No alcanzaste cupo?** En "Tus grupos" tocas **No pude matricularla** en esa materia: si el grupo
+  se llenó, la página busca otro sin mover tus demás materias (y si no se puede, te dice cuáles habría
+  que mover); si no la vas a ver, la saca del horario. Lo deshaces en **"Lo que no pudiste matricular"**.
 - **En "Profesores que prefieres evitar"**, también debajo del horario, aparecen los profesores de
   tu tabla: tocas los que no quieres y quedan tachados.
 - **Abajo pones tus datos en tres pasos** (los dos últimos son opcionales). Mientras editas,
@@ -128,10 +131,10 @@ Todo el cálculo está en [`index.html`](index.html), en JavaScript, y usa **bac
 4. Si lo escogido hasta ahora **ya no puede superar** a los mejores horarios encontrados, deja de explorar ese camino (*poda*).
 5. Al completar todas las materias, guarda el horario si está entre los mejores.
 
-Antes de empezar deja solo el grupo fijo en las materias que tengan uno y quita los grupos que
-caen en **horas ocupadas**. Si alguna materia se queda sin
-grupos (por ejemplo, todos sus grupos son en la mañana y trabajas en la mañana), avisa que esa
-materia **no cabe** y arma el mejor horario con las demás.
+Antes de empezar saca las materias que no vas a ver y los grupos **sin cupo**, deja solo el grupo
+fijo en las materias que tengan uno y quita los grupos que caen en **horas ocupadas**. Si alguna materia se queda sin
+grupos (por ejemplo, todos sus grupos son en la mañana y trabajas en la mañana, o todos se llenaron),
+avisa que esa materia **no cabe** y arma el mejor horario con las demás.
 
 **Detalle de la poda:** la cota usa solo las horas fuera de rango y los días usados, porque esos
 puntos solo pueden **subir** al agregar materias. Los huecos **no** entran en la cota: una materia
@@ -166,7 +169,9 @@ node tests/pruebas.js
 Toman la lógica de `index.html` y comprueban, entre otras cosas, que:
 
 - la búsqueda con poda encuentra **el mismo óptimo que probar todas las combinaciones**, en 500
-  casos al azar con horas ocupadas, profesores evitados, grupos fijos y pesos distintos;
+  casos al azar con horas ocupadas, profesores evitados, grupos fijos, grupos sin cupo, materias
+  quitadas y pesos distintos;
+- los grupos sin cupo y las materias que no vas a ver no entran en el horario;
 - las horas ocupadas entre clases no cuentan como hueco y el premio del lunes funciona;
 - el enlace para compartir devuelve exactamente lo mismo que se guardó;
 - se leen bien los CSV (con `,` o `;`, tildes, a. m. / p. m.) y las respuestas pegadas desde una IA;
