@@ -22,7 +22,7 @@ Página web que arma el **mejor horario del semestre** a partir de los grupos (N
 ```
 creador-horarios/
 ├── index.html           # TODA la aplicación (~2.070 líneas): estilos, lógica e interfaz
-├── tests/pruebas.js     # 12 pruebas con Node.js (toman la lógica de index.html)
+├── tests/pruebas.js     # 13 pruebas con Node.js (toman la lógica de index.html)
 ├── ejemplos/
 │   ├── cursos.csv       # el mismo ejemplo que trae la página (5 materias × 4 grupos)
 │   └── foto-*.png       # 3 capturas de portal para probar la lectura con IA
@@ -83,7 +83,9 @@ flowchart TD
 
 **La cota (poda)** solo usa lo que puede **subir** al agregar materias: horas fuera de rango, días usados y profesores evitados. Los huecos **no** entran porque una materia nueva puede taparlos. Al premio del lunes, que baja el puntaje, se le resta de una vez el máximo que aún podrían dar las materias que faltan.
 
-`buscar` devuelve `{ mejores, nodos, cortado, sinGrupo, fijados, combinaciones }`.
+`buscar` devuelve `{ mejores, nodos, cortado, sinGrupo, fijados, combinaciones, sinCupo, quitadas }`.
+
+**No pude matricularla.** Al marcar un grupo sin cupo (o quitar una materia), `reacomodar` primero intenta dejar las otras materias en sus grupos (quedan fijas, porque ya las matriculaste). Si así la materia no cabe, busca el mejor horario sin esa restricción y avisa qué materias hubo que mover.
 
 > **Con el ejemplo**
 > 5 materias × 4 grupos = **1.024 combinaciones**. El mejor horario cuesta **0**: lunes a jueves, viernes libre.
@@ -102,7 +104,9 @@ El archivo tiene tres partes: estilos (`<style>`), marcado (HTML) y un `<script>
 | `seCruzan`, `grupoChoca`, `chocaConBloqueos` | Detectar cruces |
 | `horasDeHueco`, `detalleCosto`, `cotaInferior` | Calcular puntaje y cota |
 | `tieneProfeEvitado`, `claveMateria` | Profesores evitados y grupos fijos |
-| `buscar` | Backtracking con poda |
+| `sinCupoGrupo` | ¿Ese grupo quedó sin cupo? |
+| `buscar` | Backtracking con poda (sin las materias quitadas ni los grupos sin cupo) |
+| `armar` | Llama a `buscar` y, si alguna materia no cabe, arma el horario con las demás |
 | `construirCursos` | Pasa las filas de la tabla a materias con grupos |
 | `parsearCSV`, `generarCSV`, `extraerCSVDeRespuesta` | CSV (con `,` o `;`) y respuestas de la IA |
 | `domingoDePascua`, `festivosColombia`, `generarICS` | Festivos de Colombia y archivo de calendario |
@@ -118,6 +122,7 @@ El archivo tiene tres partes: estilos (`<style>`), marcado (HTML) y un `<script>
 | Cálculo | `cambio()` → `calcular()` → `pintarResultado()` |
 | Resultado | `escribirTitular`, `dibujarCuaderno` (el tablero), `pintarVacio`, `elegirOpcion` |
 | Grupos y profesores | `describirGrupo`, `fijarGrupo`, `soltarFijos`, `pintarProfes` |
+| No pude matricularla | `grupoSinCupo`, `quitarMateria`, `reacomodar`, `devolverCupos`, `devolverMaterias`, `pintarNoPudiste` |
 | Compartir | `codificarEnlace`, `decodificarEnlace`, `abrirEnlace`, `pintarTodo` |
 | Imagen | `imagenHorario`, `partirTexto`, `rectRedondo` |
 | Calendario | `prepararCalendario`, `semestrePorDefecto` |
@@ -128,7 +133,7 @@ El archivo tiene tres partes: estilos (`<style>`), marcado (HTML) y un `<script>
 1. Encabezado: logo y botones **Compartir**, **Descargar imagen**, **Imprimir**.
 2. Avisos: "abriste un enlace compartido" y "esto es un ejemplo".
 3. Titular (por ejemplo, *"Clases lunes a jueves. Viernes libre."*), opciones y **tablero** del horario.
-4. **Tus grupos**: un menú por materia para fijar el grupo.
+4. **Tus grupos**: un menú por materia para fijar el grupo, y **No pude matricularla** (grupo sin cupo o no la voy a ver). Debajo, **Lo que no pudiste matricular** para deshacer.
 5. **Profesores que prefieres evitar**.
 6. Exportar (calendario, CSV) y estadísticas.
 7. Edición en 3 pasos: **1. Tus materias**, **2. Horas ocupadas**, **3. Cómo se califica**.
@@ -159,12 +164,14 @@ estado = {
   semestre,           // fechas para el .ics
   evitar,             // profesores evitados
   fijos,              // { "cálculo iii": "B" }
+  llenos,             // grupos sin cupo: { "cálculo iii": ["C"] }
+  quitadas,           // materias que no vas a ver: ["Ética Profesional"]
 }
 ```
 
 ### Enlace para compartir
 
-- `empacarEstado` deja el estado en listas cortas (`v:1`): `f` filas, `p` pesos, `h` horas, `t` top, `b` bloqueos, `x` evitar, `j` fijos, `o` opción vista.
+- `empacarEstado` deja el estado en listas cortas (`v:1`): `f` filas, `p` pesos, `h` horas, `t` top, `b` bloqueos, `x` evitar, `j` fijos, `o` opción vista, `n` grupos sin cupo, `q` materias quitadas.
 - Se comprime con `CompressionStream("deflate-raw")` y va en base64url después del `#`: `#h=z…` comprimido, `#h=j…` sin comprimir.
 - Lo que va después del `#` **no llega a ningún servidor**.
 - Al abrirlo, lo que la persona tenía se guarda en `creador-horarios-v1-respaldo` y aparece el botón **"Volver a mis materias"**.
@@ -190,11 +197,12 @@ Hecho con la skill *impeccable*. La metáfora es un **mapa de transporte**: cada
 node tests/pruebas.js
 ```
 
-Las 12 pruebas comprueban que:
+Las 13 pruebas comprueban que:
 
 - la poda encuentra **el mismo óptimo que la fuerza bruta** en 500 casos al azar (con horas ocupadas, profesores, grupos fijos y pesos distintos);
 - los huecos, las horas ocupadas y el premio del lunes se cuentan bien;
 - los grupos fijos se respetan;
+- los grupos sin cupo y las materias quitadas no entran;
 - el enlace de compartir hace ida y vuelta sin perder nada;
 - los CSV y las respuestas de la IA se leen bien;
 - los festivos de 2026 coinciden con la lista oficial y el `.ics` sale bien armado;

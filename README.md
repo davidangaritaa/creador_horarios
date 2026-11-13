@@ -42,6 +42,11 @@ profesor, lo escoges en **"Tus grupos"**, justo debajo del horario: cada materia
 todos sus grupos (aunque no hayan salido en ninguna opción). Esa materia queda fija en ese grupo y el
 resto del horario se arma alrededor.
 
+**No pude matricularla.** Si en la matrícula un grupo se llenó, tocas **"No pude matricularla"** en esa
+materia, en **"Tus grupos"**. Puedes decir que **el grupo se llenó** (la página busca otro grupo de esa materia
+y deja tus demás materias como estaban; si así no cabe, te dice qué otras materias habría que mover) o que
+**no la vas a ver este semestre** (sale del horario). Todo se puede deshacer en **"Lo que no pudiste matricular"**.
+
 Los puntos de cada regla y el rango de horas se cambian en la misma página, en **"Cómo se califica"**.
 
 ## Cómo usarlo
@@ -177,6 +182,7 @@ Toman la lógica de `index.html` y comprueban, entre otras cosas, que:
 - [x] Evitar profesores.
 - [x] Fijar un grupo ("quiero sí o sí Cálculo con Gómez").
 - [x] Compartir el horario con un enlace y descargarlo como imagen.
+- [x] "No pude matricularla": grupo sin cupo o materia que no vas a ver, y el horario se ajusta.
 - [ ] Materias opcionales ("quiero ver 5 de estas 7") o un máximo de créditos.
 - [ ] Teoría y laboratorio amarrados (dos NRC que van juntos).
 

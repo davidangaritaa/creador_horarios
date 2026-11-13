@@ -224,6 +224,30 @@
     background: var(--acento-suave); color: var(--acento) !important; font-size: .75rem !important; font-weight: 800;
   }
   .fijo-tag .icono { width: 12px; height: 12px; }
+
+  /* "No pude matricularla": se abre debajo de cada materia */
+  .escogidos details.no-pude { margin-top: 6px; }
+  .escogidos details.no-pude > summary {
+    display: inline-flex; align-items: center; min-height: 32px; cursor: pointer; list-style: none;
+    color: var(--tinta-2); font-size: .875rem; font-weight: 700; text-decoration: underline; text-underline-offset: 3px;
+  }
+  .escogidos details.no-pude > summary::-webkit-details-marker { display: none; }
+  .escogidos details.no-pude > summary:hover { color: var(--peligro); }
+  .escogidos details.no-pude[open] > summary { color: var(--tinta); text-decoration: none; }
+  .no-pude .botones { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 2px; }
+  .no-pude .botones button { min-height: 36px; padding: 0 12px; font-size: .875rem; }
+  .escogidos option:disabled { color: var(--tinta-2); }
+  .aviso-caja.ajuste { margin: 12px 0 0; }
+  .aviso-caja.ajuste button { margin-left: auto; }
+  .no-pudiste { margin-top: 24px; }
+  .no-pudiste h3 { margin: 0 0 6px; font-size: 1rem; font-weight: 800; }
+  .no-pudiste ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .no-pudiste li {
+    display: inline-flex; align-items: center; gap: 8px; padding: 4px 4px 4px 12px; border-radius: 999px;
+    background: color-mix(in srgb, var(--peligro) 8%, var(--panel)); border: 1px solid color-mix(in srgb, var(--peligro) 28%, transparent);
+    font-size: .875rem; font-weight: 700;
+  }
+  .no-pudiste li button { min-height: 30px; padding: 0 10px; font-size: .8125rem; border-radius: 999px; }
   .grupos { margin-top: 36px; }
   .grupos h2 { margin: 0 0 6px; font-size: 1.375rem; font-weight: 800; letter-spacing: -.015em; }
   .grupos .ayuda { margin-bottom: 4px; }
@@ -393,8 +417,13 @@
     <div class="cuaderno-scroll"><div class="cuaderno" id="calendario"></div></div>
     <section class="grupos" id="grupos" aria-labelledby="t-grupos">
       <h2 id="t-grupos">Tus grupos</h2>
-      <p class="ayuda no-imprimir">La página escoge el mejor grupo de cada materia. ¿Ya tienes cupo en uno, o lo quieres sí o sí? Cámbialo aquí y queda fijo: las demás materias se acomodan alrededor.</p>
+      <p class="ayuda no-imprimir">La página escoge el mejor grupo de cada materia. ¿Ya tienes cupo en uno, o lo quieres sí o sí? Cámbialo aquí y queda fijo: las demás materias se acomodan alrededor. ¿No alcanzaste cupo? Toca <b>No pude matricularla</b> y el horario se ajusta.</p>
+      <p class="aviso-caja info no-imprimir ajuste" id="ajuste" role="status" hidden></p>
       <ul class="escogidos" id="detalle"></ul>
+      <div class="no-pudiste no-imprimir" id="no-pudiste" hidden>
+        <h3>Lo que no pudiste matricular</h3>
+        <ul id="lista-no-pudiste"></ul>
+      </div>
     </section>
 
     <section class="grupos no-imprimir" id="profes-sec" aria-labelledby="t-profes">
@@ -636,14 +665,23 @@ const LIMITE_NODOS = 3000000;
 /* Los grupos fijos se guardan como { "calculo iii": "B" } (materia en minúscula -> grupo). */
 const claveMateria = m => String(m || "").trim().toLowerCase();
 
+/* ¿Ese grupo se llenó? Los grupos sin cupo se guardan como { "calculo iii": ["B"] }. */
+function sinCupoGrupo(llenos, materia, grupo) {
+  return ((llenos || {})[claveMateria(materia)] || []).some(x => claveMateria(x) === claveMateria(grupo));
+}
+
 function buscar(cursosTodos, cfg) {
+  // Las materias que no vas a ver no entran, y los grupos sin cupo tampoco.
   // Si fijaste un grupo de una materia, esa materia solo puede usar ese grupo.
   // Después se quitan los grupos que caen en horas ocupadas.
-  const bloqueos = cfg.bloqueos || [], fijos = cfg.fijos || {};
-  const cursos = {}, sinGrupo = [], fijados = [];
+  const bloqueos = cfg.bloqueos || [], fijos = cfg.fijos || {}, llenos = cfg.llenos || {};
+  const quitar = (cfg.quitadas || []).map(claveMateria);
+  const cursos = {}, sinGrupo = [], fijados = [], sinCupo = [], quitadas = [];
   let combinaciones = 1;
   for (const [m, todos] of Object.entries(cursosTodos)) {
-    let gs = todos;
+    if (quitar.includes(claveMateria(m))) { quitadas.push(m); continue; }
+    let gs = todos.filter(g => !sinCupoGrupo(llenos, m, g.nombre));
+    if (!gs.length) { sinCupo.push(m); sinGrupo.push(m); cursos[m] = []; continue; }
     const fijo = fijos[claveMateria(m)];
     if (fijo) {
       const solo = gs.filter(g => claveMateria(g.nombre) === claveMateria(fijo));
@@ -653,7 +691,7 @@ function buscar(cursosTodos, cfg) {
     cursos[m] = gs.filter(g => !chocaConBloqueos(g, bloqueos));
     if (!cursos[m].length) sinGrupo.push(m);
   }
-  if (sinGrupo.length) return { mejores: [], nodos: 0, cortado: false, sinGrupo, fijados, combinaciones };
+  if (sinGrupo.length) return { mejores: [], nodos: 0, cortado: false, sinGrupo, fijados, combinaciones, sinCupo, quitadas };
 
   const materias = Object.keys(cursos).sort((a, b) => cursos[a].length - cursos[b].length);
   const pendiente = new Array(materias.length + 1).fill(0);
@@ -684,7 +722,23 @@ function buscar(cursosTodos, cfg) {
     }
   }
   recorrer(0, []);
-  return { mejores, nodos: Math.min(nodos, LIMITE_NODOS), cortado, sinGrupo, fijados, combinaciones };
+  return { mejores, nodos: Math.min(nodos, LIMITE_NODOS), cortado, sinGrupo, fijados, combinaciones, sinCupo, quitadas };
+}
+
+/* Arma el horario aunque alguna materia no quepa (sin cupo o por horas ocupadas):
+   la deja por fuera y busca el mejor horario con las demás. */
+function armar(cursos, cfg) {
+  const r1 = buscar(cursos, cfg);
+  const { sinCupo, quitadas } = r1;
+  const fuera = r1.sinGrupo;
+  const activas = Object.keys(cursos).filter(m => !quitadas.includes(m));
+  const fueraPorFijo = fuera.filter(m => r1.fijados.includes(m));
+  if (!fuera.length) return { ...r1, fuera, fueraPorFijo, activas };
+  const quedan = {};
+  for (const m of activas) if (!fuera.includes(m)) quedan[m] = cursos[m];
+  if (!Object.keys(quedan).length) return { ...r1, mejores: [], fuera, fueraPorFijo, activas };
+  const r2 = buscar(quedan, cfg);
+  return { ...r2, sinGrupo: fuera, fuera, fueraPorFijo, activas, sinCupo, quitadas };
 }
 
 /* Convierte las filas de la tabla en {materia: [grupo, ...]} y valida. */
@@ -964,6 +1018,7 @@ function empacarEstado(e, seleccion) {
     p: e.pesos, h: [e.horaInicio, e.horaFin], t: e.top,
     b: (e.bloqueos || []).map(b => [b.nombre || "", (b.dias || []).join(" "), b.inicio || "", b.fin || ""]),
     x: e.evitar || [], j: e.fijos || {}, o: seleccion || 0,
+    n: e.llenos || {}, q: e.quitadas || [],
   };
 }
 
@@ -981,6 +1036,10 @@ function desempacarEstado(o) {
                                         inicio: texto(a[2]), fin: texto(a[3]) })),
       evitar: (o.x || []).map(texto),
       fijos: o.j && typeof o.j === "object" ? o.j : {},
+      llenos: o.n && typeof o.n === "object" && !Array.isArray(o.n)
+        ? Object.fromEntries(Object.entries(o.n).filter(([, v]) => Array.isArray(v)).map(([k, v]) => [k, v.map(texto)]))
+        : {},
+      quitadas: Array.isArray(o.q) ? o.q.map(texto) : [],
     },
     seleccion: Math.max(0, parseInt(o.o) || 0),
   };
@@ -1007,7 +1066,11 @@ let estado = {
   semestre: null,      // { inicio, fin, festivos, alarma } para el calendario
   evitar: [],          // profesores que prefieres evitar
   fijos: {},           // grupos fijos: { "calculo iii": "B" }
+  llenos: {},          // grupos que no pudiste matricular (sin cupo): { "calculo iii": ["B"] }
+  quitadas: [],        // materias que no vas a ver este semestre
 };
+// Mensaje que explica cómo se reacomodó el horario después de "No pude matricularla"
+let notaAjuste = null;
 let resultado = null, seleccion = 0;
 
 function cargarEstado() {
@@ -1019,7 +1082,7 @@ function cargarEstado() {
       const f = estado.filas;
       if (f.length === 23 && f[0].materia === "Calculo III" && f[0].profesor === "Perez" && f[22].materia === "Etica") {
         estado.filas = parsearCSV(EJEMPLO_CSV);
-        estado.fijos = {};
+        estado.fijos = {}; estado.llenos = {}; estado.quitadas = [];
       }
     }
   } catch (e) { /* sin almacenamiento: se usa el ejemplo */ }
@@ -1167,6 +1230,7 @@ function pintarPrefs() {
 /* --- Cálculo --- */
 let temporizador = null;
 function cambio() {
+  notaAjuste = null;
   guardarEstado();
   clearTimeout(temporizador);
   temporizador = setTimeout(calcular, 200);
@@ -1181,6 +1245,8 @@ function configuracion() {
     bloqueos: revisarBloqueos().validos,
     evitar: estado.evitar,
     fijos: estado.fijos,
+    llenos: estado.llenos,
+    quitadas: estado.quitadas,
   };
 }
 
@@ -1317,44 +1383,61 @@ function calcular() {
     return;
   }
   const t0 = performance.now();
-  let r = buscar(cursos, cfg);
-  // Si alguna materia no cabe (todos sus grupos caen en horas ocupadas),
-  // se arma igual el mejor horario con las materias que sí caben.
-  const fuera = r.sinGrupo || [];
-  const fueraPorFijo = fuera.filter(m => r.fijados.includes(m));
-  let posibles = r.combinaciones;
-  if (fuera.length) {
-    const quedan = {};
-    for (const m of materias) if (!fuera.includes(m)) quedan[m] = cursos[m];
-    if (!Object.keys(quedan).length) {
-      $("stats").textContent = "";
-      $("falta").hidden = true;
-      pintarVacio(cfg, "Ninguna materia cabe en tus horas libres.",
-        "Todos los grupos de todas tus materias se cruzan con tus horas ocupadas. Mueve o quita alguna de ellas.",
-        "no cabe con tus horas ocupadas");
-      return;
-    }
-    r = buscar(quedan, cfg);
-    posibles = r.combinaciones;
-  }
+  // Si alguna materia no cabe (sin cupo o con todos sus grupos en horas ocupadas),
+  // armar() deja el mejor horario con las materias que sí caben.
+  const r = armar(cursos, cfg);
+  const { fuera, fueraPorFijo, activas } = r;
   const ms = performance.now() - t0;
-  resultado = { ...r, cfg, combinaciones: posibles, fuera, cursos };
+  resultado = { ...r, cfg, cursos };
   if (seleccion >= r.mejores.length) seleccion = 0;
+
+  if (!activas.length) {
+    $("stats").textContent = "";
+    $("falta").hidden = true;
+    pintarVacio(cfg, "Quitaste todas tus materias.",
+      "Marcaste que no vas a ver ninguna de las materias de tu tabla.", "sin materias este semestre");
+    $("resumen").append(" ", el("button", { onclick: () => devolverMaterias(r.quitadas) }, "Volver a ponerlas"));
+    return;
+  }
+  if (fuera.length === activas.length) {
+    $("stats").textContent = "";
+    $("falta").hidden = true;
+    const porCupo = fuera.every(m => r.sinCupo.includes(m));
+    pintarVacio(cfg, porCupo ? "Ninguna materia tiene grupos con cupo." : "Ninguna materia cabe en tus horas libres.",
+      porCupo ? "Marcaste todos los grupos de tus materias como llenos."
+              : "Todos los grupos de todas tus materias se cruzan con tus horas ocupadas o no tienen cupo. Mueve o quita alguna de ellas.",
+      porCupo ? "sin cupo" : "no cabe con tus horas ocupadas");
+    if (r.sinCupo.length) $("resumen").append(" ", el("button", { onclick: () => devolverCupos(r.sinCupo) }, "Deshacer los grupos sin cupo"));
+    return;
+  }
 
   const falta = $("falta");
   falta.hidden = !fuera.length;
   if (fuera.length) {
     const cuales = enLista(fuera);
-    falta.innerHTML = "";
-    falta.append(el("b", {}, fuera.length === 1 ? `${cuales} no cabe.` : `${cuales} no caben.`));
-    if (fueraPorFijo.length === fuera.length) {
-      falta.append(` ${fuera.length === 1 ? "El grupo que fijaste se cruza" : "Los grupos que fijaste se cruzan"} con tus horas ocupadas, así que este es el mejor horario con las otras ${materias.length - fuera.length} materias.`,
-        el("button", { onclick: () => soltarFijos(fueraPorFijo) }, fuera.length === 1 ? "Soltar ese grupo" : "Soltar esos grupos"));
-    } else {
-      falta.append(` Todos sus grupos se cruzan con tus horas ocupadas, así que este es el mejor horario con las otras ${materias.length - fuera.length} materias. ` +
-        "Para incluirla, mueve una hora ocupada o agrega otro grupo de esa materia.");
+    const porCupo = fuera.filter(m => r.sinCupo.includes(m));
+    const porFijo = fueraPorFijo.filter(m => !porCupo.includes(m));
+    const porHoras = fuera.filter(m => !porCupo.includes(m) && !porFijo.includes(m));
+    const plural = l => l.length > 1;
+    const textos = [], botones = [];
+    if (porCupo.length) {
+      textos.push(`A ${enLista(porCupo)} no ${plural(porCupo) ? "les" : "le"} queda ningún grupo con cupo.`);
+      botones.push(el("button", { onclick: () => devolverCupos(porCupo) }, "Deshacer sin cupo"));
     }
+    if (porFijo.length) {
+      textos.push(`${plural(porFijo) ? "Los grupos que fijaste" : "El grupo que fijaste"} en ${enLista(porFijo)} se ${plural(porFijo) ? "cruzan" : "cruza"} con tus horas ocupadas.`);
+      botones.push(el("button", { onclick: () => soltarFijos(porFijo) }, plural(porFijo) ? "Soltar esos grupos" : "Soltar ese grupo"));
+    }
+    if (porHoras.length) {
+      const conCupo = porHoras.some(m => (estado.llenos[claveMateria(m)] || []).length) ? " con cupo" : "";
+      textos.push(`Todos los grupos${conCupo} de ${enLista(porHoras)} se cruzan con tus horas ocupadas: ` +
+        "mueve una hora ocupada o agrega otro grupo de esa materia.");
+    }
+    textos.push(`Este es el mejor horario con las otras ${activas.length - fuera.length} materias.`);
+    falta.innerHTML = "";
+    falta.append(el("b", {}, fuera.length === 1 ? `${cuales} no cabe.` : `${cuales} no caben.`), " " + textos.join(" "), ...botones);
   }
+  const posibles = r.combinaciones;
 
   $("stats").textContent =
     `Se revisaron ${r.nodos.toLocaleString("es-CO")} de ${posibles.toLocaleString("es-CO")} combinaciones posibles en ${fmtNum(ms)} ms.` +
@@ -1367,6 +1450,8 @@ function calcular() {
         : "Ninguna combinación queda sin cruces. Revisa si dos materias solo tienen grupos a la misma hora y agrega otro grupo de alguna de ellas.",
       "no hay horario sin cruces");
     if (r.fijados.length) $("resumen").append(el("button", { onclick: () => soltarFijos() }, "Soltar los grupos fijos"));
+    const conLlenos = Object.keys(estado.llenos).filter(k => estado.llenos[k].length);
+    if (conLlenos.length) $("resumen").append(el("button", { onclick: () => devolverCupos(conLlenos) }, "Deshacer los grupos sin cupo"));
     return;
   }
   pintarResultado();
@@ -1388,6 +1473,7 @@ function escribirTitular(d, sesiones, i) {
   partes.push(fuera ? `${fmtH(fuera)} fuera de tu rango de horas` : "todo dentro de tu rango de horas");
   const nFijos = resultado.fijados.length;
   if (nFijos) partes.push(nFijos === 1 ? "con el grupo que fijaste" : `con los ${nFijos} grupos que fijaste`);
+  if (resultado.quitadas && resultado.quitadas.length) partes.push(`sin ${enLista(resultado.quitadas)}, que no vas a ver`);
   if (resultado.cfg.evitar && resultado.cfg.evitar.length) {
     partes.push(d.conEvitados.length
       ? `te toca con ${enLista(d.conEvitados.map(g => `${g.profesor} en ${g.materia}`))}, que querías evitar`
@@ -1398,7 +1484,8 @@ function escribirTitular(d, sesiones, i) {
   p.innerHTML = "";
   const total = resultado.mejores.length;
   p.append(i === 0
-    ? `Es la mejor de ${resultado.combinaciones.toLocaleString("es-CO")} combinaciones posibles: `
+    ? (resultado.combinaciones === 1 ? "Es la única combinación posible: "
+       : `Es la mejor de ${resultado.combinaciones.toLocaleString("es-CO")} combinaciones posibles: `)
     : `Es la opción ${i + 1} de las ${total} mejores: `);
   p.append(enLista(partes) + ". ", el("b", {}, `Puntaje ${fmtNum(d.total)}.`));
 }
@@ -1452,8 +1539,16 @@ function pintarResultado() {
       onchange: e => e.target.value ? fijarGrupo(g.materia, e.target.value) : soltarFijos([g.materia]),
     },
       el("option", { value: "" }, fijo ? "Que la página escoja el grupo" : `Grupo ${g.nombre} (el que mejor encaja)`),
-      ...todos.map(x => el("option", { value: x.nombre }, describirGrupo(x))));
+      ...todos.map(x => {
+        const lleno = sinCupoGrupo(estado.llenos, g.materia, x.nombre);
+        return el("option", { value: x.nombre, disabled: lleno ? "" : null }, describirGrupo(x) + (lleno ? " (sin cupo)" : ""));
+      }));
     menu.value = fijo ? g.nombre : "";
+    const noPude = el("details", { class: "no-pude no-imprimir" },
+      el("summary", {}, "No pude matricularla"),
+      el("div", { class: "botones" },
+        el("button", { type: "button", onclick: () => grupoSinCupo(g.materia, g.nombre) }, `El grupo ${g.nombre} se llenó: buscar otro`),
+        el("button", { type: "button", onclick: () => quitarMateria(g.materia) }, "No la voy a ver este semestre")));
     detalle.append(el("li", {},
       sigla(g.materia, color(g.materia)),
       el("div", {},
@@ -1462,9 +1557,126 @@ function pintarResultado() {
         todos.length > 1 || fijo ? menu : null,
         g.profesor ? el("span", {}, `Con ${g.profesor}`,
           tieneProfeEvitado(g, cfg.evitar) ? el("span", { class: "evitado", style: { display: "inline" } }, " (lo querías evitar)") : null) : null,
-        el("span", {}, enLista(clases) + "."))));
+        el("span", {}, enLista(clases) + "."),
+        noPude)));
   });
   if (foco) { const s = [...detalle.querySelectorAll("select")].find(x => x.getAttribute("aria-label") === foco); if (s) s.focus(); }
+  pintarNoPudiste();
+}
+
+/* =====================================================================
+   NO PUDE MATRICULARLA: grupos sin cupo y materias que no vas a ver
+   ===================================================================== */
+
+/* Lo que no pudiste matricular, con un botón para deshacer cada cosa */
+function pintarNoPudiste() {
+  const lista = $("lista-no-pudiste");
+  lista.innerHTML = "";
+  const materias = resultado ? resultado.cursos : {};
+  const nombre = clave => Object.keys(materias).find(m => claveMateria(m) === clave) || clave;
+  for (const [clave, grupos] of Object.entries(estado.llenos)) {
+    if (!grupos.length || !Object.keys(materias).some(m => claveMateria(m) === clave)) continue;
+    for (const gr of grupos) {
+      lista.append(el("li", {}, `${nombre(clave)}, grupo ${gr}: sin cupo`,
+        el("button", { type: "button", title: "Volver a tener en cuenta este grupo",
+          onclick: () => devolverCupos([nombre(clave)], gr) }, "Deshacer")));
+    }
+  }
+  for (const m of estado.quitadas) {
+    if (!Object.keys(materias).some(x => claveMateria(x) === claveMateria(m))) continue;
+    lista.append(el("li", {}, `${nombre(claveMateria(m))}: no la vas a ver`,
+      el("button", { type: "button", title: "Volver a ponerla en el horario",
+        onclick: () => devolverMaterias([m]) }, "Volver a ponerla")));
+  }
+  $("no-pudiste").hidden = !lista.children.length;
+
+  const ajuste = $("ajuste");
+  ajuste.hidden = !notaAjuste;
+  ajuste.innerHTML = "";
+  if (notaAjuste) ajuste.append(el("span", {}, notaAjuste));
+}
+
+/* Al no poder matricular algo, lo ideal es que lo que ya matriculaste no se mueva:
+   primero se intenta dejar las otras materias en sus grupos (quedan fijas);
+   si así la materia no cabe, se busca el mejor horario moviendo lo necesario. */
+function reacomodar(materia, antes, inicio) {
+  const { cursos } = construirCursos(estado.filas);
+  const otras = {};
+  for (const g of antes) if (claveMateria(g.materia) !== claveMateria(materia)) otras[claveMateria(g.materia)] = g.nombre;
+  const fijosConOtras = { ...estado.fijos, ...otras };
+  const base = configuracion();
+  const quieto = armar(cursos, { ...base, fijos: fijosConOtras });
+  const nuevoGrupo = r => { const g = r.mejores[0] && r.mejores[0].grupos.find(x => x.materia === materia); return g && g.nombre; };
+  const quitada = estado.quitadas.some(m => claveMateria(m) === claveMateria(materia));
+
+  if (quieto.mejores.length) {
+    estado.fijos = fijosConOtras;
+    const n = Object.keys(otras).length;
+    const igual = n ? (n === 1 ? " Tu otra materia sigue igual y queda fija." : ` Tus otras ${n} materias siguen igual y quedan fijas.`) : "";
+    if (quitada) notaAjuste = `${inicio}${igual}`;
+    else if (quieto.fuera.includes(materia)) notaAjuste = `${inicio} A ${materia} no le queda ningún grupo con cupo que quepa en tu horario.${igual}`;
+    else notaAjuste = `${inicio} Te pasamos al grupo ${nuevoGrupo(quieto)}.${igual}`;
+  } else {
+    // Con las otras materias quietas no hay forma: se reacomodan las que haga falta
+    const libre = armar(cursos, base);
+    if (libre.mejores.length) {
+      const movidas = libre.mejores[0].grupos
+        .map(g => ({ g, antes: antes.find(a => a.materia === g.materia) }))
+        .filter(({ g, antes: a }) => a && a.nombre !== g.nombre && g.materia !== materia);
+      const cambios = movidas.map(({ g, antes: a }) => `${g.materia} (del grupo ${a.nombre} al ${g.nombre})`);
+      const nombres = enLista(movidas.map(({ g }) => g.materia));
+      notaAjuste = `${inicio} Te pasamos al grupo ${nuevoGrupo(libre)}, pero para que quepa hubo que mover ${enLista(cambios)}.` +
+        ` Si ya matriculaste ${nombres} en ${movidas.length > 1 ? "esos grupos" : "ese grupo"}, ${materia} no cabe sin cambiarte: ` +
+        `puedes cambiarte o dejar ${materia} para otro semestre con "No la voy a ver".`;
+    } else {
+      notaAjuste = `${inicio} No quedó ningún horario sin cruces; revisa el aviso de arriba.`;
+    }
+  }
+  guardarEstado();
+  seleccion = 0;
+  calcular();
+  if (notaAjuste) avisar(notaAjuste.split(". ")[0] + ".");
+  irA("t-grupos");
+}
+
+function opcionVista() {
+  return resultado && resultado.mejores[seleccion] ? resultado.mejores[seleccion].grupos : [];
+}
+function grupoSinCupo(materia, grupo) {
+  const clave = claveMateria(materia), antes = opcionVista();
+  const ya = estado.llenos[clave] || [];
+  estado.llenos = { ...estado.llenos, [clave]: ya.some(x => claveMateria(x) === claveMateria(grupo)) ? ya : ya.concat(grupo) };
+  estado.fijos = { ...estado.fijos };
+  delete estado.fijos[clave];                     // ese grupo ya no puede quedar fijo
+  reacomodar(materia, antes, `El grupo ${grupo} de ${materia} quedó sin cupo.`);
+}
+function quitarMateria(materia) {
+  const clave = claveMateria(materia), antes = opcionVista();
+  if (!estado.quitadas.some(m => claveMateria(m) === clave)) estado.quitadas = estado.quitadas.concat(materia);
+  estado.fijos = { ...estado.fijos };
+  delete estado.fijos[clave];
+  reacomodar(materia, antes, `Quitamos ${materia} de tu horario.`);
+}
+/* Deshacer: el grupo (o todos los grupos sin cupo de esas materias) vuelve a contar */
+function devolverCupos(materias, grupo) {
+  estado.llenos = { ...estado.llenos };
+  for (const m of materias) {
+    const clave = claveMateria(m);
+    const quedan = grupo === undefined ? [] : (estado.llenos[clave] || []).filter(x => claveMateria(x) !== claveMateria(grupo));
+    if (quedan.length) estado.llenos[clave] = quedan; else delete estado.llenos[clave];
+  }
+  notaAjuste = null;
+  guardarEstado();
+  seleccion = 0;
+  calcular();
+}
+function devolverMaterias(materias) {
+  const claves = materias.map(claveMateria);
+  estado.quitadas = estado.quitadas.filter(m => !claves.includes(claveMateria(m)));
+  notaAjuste = null;
+  guardarEstado();
+  seleccion = 0;
+  calcular();
 }
 
 /* --- Grupos fijos --- */
@@ -1482,6 +1694,7 @@ function describirGrupo(g) {
 
 function fijarGrupo(materia, grupo) {
   estado.fijos = { ...estado.fijos, [claveMateria(materia)]: grupo };
+  notaAjuste = null;
   guardarEstado();
   seleccion = 0;
   calcular();
@@ -1490,6 +1703,7 @@ function fijarGrupo(materia, grupo) {
 function soltarFijos(materias) {
   if (!materias) estado.fijos = {};
   else { estado.fijos = { ...estado.fijos }; materias.forEach(m => delete estado.fijos[claveMateria(m)]); }
+  notaAjuste = null;
   guardarEstado();
   seleccion = 0;
   calcular();
@@ -1586,7 +1800,7 @@ $("archivo").onchange = e => {
   lector.onload = () => {
     try {
       estado.filas = parsearCSV(String(lector.result));
-      estado.fijos = {};
+      estado.fijos = {}; estado.llenos = {}; estado.quitadas = [];
       seleccion = 0;
       pintarFilas();
       cambio();
@@ -1607,7 +1821,7 @@ $("btn-descargar").onclick = () =>
 $("btn-ejemplo").onclick = () => {
   if (estado.filas.length && !confirm("Esto reemplaza tus materias por las del ejemplo. ¿Continuar?")) return;
   estado.filas = parsearCSV(EJEMPLO_CSV);
-  estado.fijos = {};
+  estado.fijos = {}; estado.llenos = {}; estado.quitadas = [];
   seleccion = 0;
   pintarFilas();
   cambio();
@@ -1615,7 +1829,7 @@ $("btn-ejemplo").onclick = () => {
 $("btn-limpiar").onclick = () => {
   if (!confirm("¿Borrar todas las materias de la tabla?")) return;
   estado.filas = [];
-  estado.fijos = {};
+  estado.fijos = {}; estado.llenos = {}; estado.quitadas = [];
   pintarFilas();
   cambio();
 };
@@ -1648,7 +1862,7 @@ function importarPegado(reemplazar) {
     const nuevas = extraerCSVDeRespuesta($("pegado").value);
     if (reemplazar && estado.filas.length && !confirm(`Esto reemplaza tus ${estado.filas.length} clases actuales. ¿Continuar?`)) return;
     estado.filas = reemplazar ? nuevas : estado.filas.concat(nuevas);
-    if (reemplazar) estado.fijos = {};
+    if (reemplazar) { estado.fijos = {}; estado.llenos = {}; estado.quitadas = []; }
     seleccion = 0;
     pintarFilas();
     cambio();
@@ -1816,7 +2030,10 @@ async function abrirEnlace() {
   }
 }
 function pintarTodo() {
+  notaAjuste = null;
   if (!estado.fijos || typeof estado.fijos !== "object") estado.fijos = {};
+  if (!estado.llenos || typeof estado.llenos !== "object" || Array.isArray(estado.llenos)) estado.llenos = {};
+  if (!Array.isArray(estado.quitadas)) estado.quitadas = [];
   pintarFilas();
   pintarBloqueos();
   pintarPrefs();
@@ -2019,7 +2236,7 @@ const ACCIONES = {
   empezar() {
     if (esElEjemplo()) {
       estado.filas = [];
-      estado.fijos = {};
+      estado.fijos = {}; estado.llenos = {}; estado.quitadas = [];
       estado.evitar = [];
       seleccion = 0;
     }
@@ -2036,7 +2253,7 @@ const ACCIONES = {
   },
   ejemplo() {
     estado.filas = parsearCSV(EJEMPLO_CSV);
-    estado.fijos = {};
+    estado.fijos = {}; estado.llenos = {}; estado.quitadas = [];
     seleccion = 0;
     pintarFilas();
     cambio();
@@ -2059,6 +2276,8 @@ prepararCalendario();
 pintarFilas();
 if (!Array.isArray(estado.evitar)) estado.evitar = [];
 if (!estado.fijos || typeof estado.fijos !== "object") estado.fijos = {};
+if (!estado.llenos || typeof estado.llenos !== "object" || Array.isArray(estado.llenos)) estado.llenos = {};
+if (!Array.isArray(estado.quitadas)) estado.quitadas = [];
 pintarBloqueos();
 pintarPrefs();
 calcular();

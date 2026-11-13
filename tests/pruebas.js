@@ -27,7 +27,7 @@ assert(inicio >= 0 && fin > inicio, "No encontré las marcas de la lógica en in
 const L = vm.runInNewContext(html.slice(inicio, fin) + `
 ;({ DIAS, PESOS_INICIALES, aMinutos, seCruzan, grupoChoca, chocaConBloqueos, horasDeHueco,
     detalleCosto, buscar, construirCursos, parsearCSV, extraerCSVDeRespuesta, EJEMPLO_CSV,
-    tieneProfeEvitado, festivosColombia, generarICS, empacarEstado, desempacarEstado });`, {});
+    tieneProfeEvitado, festivosColombia, generarICS, empacarEstado, desempacarEstado, armar, sinCupoGrupo });`, {});
 
 const CFG = (extra = {}) => ({ pesos: { ...L.PESOS_INICIALES }, horaInicio: 480, horaFin: 1080, top: 5, bloqueos: [], evitar: [], ...extra });
 const casi = (a, b) => Math.abs(a - b) < 1e-9;
@@ -41,9 +41,11 @@ const prueba = (nombre, fn) => pruebas.push({ nombre, fn });
 
 // ---------- Fuerza bruta: prueba TODAS las combinaciones ----------
 function fuerzaBruta(cursos, cfg) {
-  // Un grupo fijo deja a su materia con solo ese grupo (si existe)
-  const fijos = cfg.fijos || {};
-  cursos = Object.fromEntries(Object.entries(cursos).map(([m, gs]) => {
+  // Las materias quitadas no entran, los grupos sin cupo tampoco,
+  // y un grupo fijo deja a su materia con solo ese grupo (si existe)
+  const fijos = cfg.fijos || {}, llenos = cfg.llenos || {}, quitadas = (cfg.quitadas || []).map(q => q.toLowerCase());
+  cursos = Object.fromEntries(Object.entries(cursos).filter(([m]) => !quitadas.includes(m.toLowerCase())).map(([m, gs]) => {
+    gs = gs.filter(g => !(llenos[m.toLowerCase()] || []).some(x => x.toLowerCase() === g.nombre.toLowerCase()));
     const f = fijos[m.toLowerCase()], solo = gs.filter(g => f && g.nombre.toLowerCase() === f.toLowerCase());
     return [m, solo.length ? solo : gs];
   }));
@@ -99,7 +101,9 @@ prueba("la poda da el mismo óptimo que la fuerza bruta (500 casos al azar)", ()
       bloqueos.push({ dia: rnd.elegir(L.DIAS.slice(0, 5)), inicio: ini, fin: ini + rnd.elegir([60, 120, 240]) });
     }
     const cfg = CFG({ top: rnd.elegir([1, 3]), bloqueos, evitar: rnd.elegir([[], [], ["rojas"], ["PEREZ", "Díaz"]]),
-                      fijos: rnd.elegir([{}, {}, { m0: "g1" }, { m1: "G0", m2: "G2" }, { m0: "no existe" }]) });
+                      fijos: rnd.elegir([{}, {}, { m0: "g1" }, { m1: "G0", m2: "G2" }, { m0: "no existe" }]),
+                      llenos: rnd.elegir([{}, {}, { m0: ["G0"] }, { m1: ["g0", "G1"], m2: ["G3"] }, { m0: ["G1"] }]),
+                      quitadas: rnd.elegir([[], [], ["M1"], ["m0", "M2"]]) });
     // Pesos al azar: así cada regla pesa lo suficiente para notar si la poda se equivoca
     cfg.pesos = { hueco: rnd.elegir([1, 0.2, 0]), temprano: rnd.elegir([2, 0.5]), tarde: rnd.elegir([2, 0.5]),
                   dia: rnd.elegir([0.5, 0, 3]), viernes: rnd.elegir([1.5, 0, 4]), lunes: rnd.elegir([0.5, 3, 6]),
@@ -171,11 +175,42 @@ prueba("grupos fijos", () => {
   igual(r2.sinGrupo, ["Cálculo III"]);
 });
 
+prueba("no pude matricular: grupos sin cupo y materias quitadas", () => {
+  const { cursos } = L.construirCursos(L.parsearCSV(L.EJEMPLO_CSV));
+  const antes = L.buscar(cursos, CFG()).mejores[0].grupos;
+  const calc = antes.find(g => g.materia === "Cálculo III");
+  // El grupo que salía se llenó: ninguna opción lo usa y el óptimo coincide con la fuerza bruta
+  const llenos = { "cálculo iii": [calc.nombre.toLowerCase()] };   // sin importar mayúsculas
+  assert(L.sinCupoGrupo(llenos, "CÁLCULO III", calc.nombre));
+  const r = L.buscar(cursos, CFG({ llenos }));
+  assert(r.mejores.length);
+  assert(r.mejores.every(o => o.grupos.find(g => g.materia === "Cálculo III").nombre !== calc.nombre));
+  assert(casi(r.mejores[0].costo, fuerzaBruta(cursos, CFG({ llenos }))));
+  // Con las otras materias quietas (fijas), solo cambia Cálculo III
+  const otras = Object.fromEntries(antes.filter(g => g.materia !== "Cálculo III").map(g => [g.materia.toLowerCase(), g.nombre]));
+  const quieto = L.armar(cursos, CFG({ llenos, fijos: otras }));
+  if (quieto.mejores.length)
+    for (const g of quieto.mejores[0].grupos) if (g.materia !== "Cálculo III") assert.strictEqual(g.nombre, otras[g.materia.toLowerCase()]);
+  // Si todos los grupos se llenan, la materia queda por fuera y el resto se arma igual
+  const todos = { "cálculo iii": cursos["Cálculo III"].map(g => g.nombre) };
+  const sin = L.armar(cursos, CFG({ llenos: todos }));
+  igual(sin.fuera, ["Cálculo III"]);
+  igual(sin.sinCupo, ["Cálculo III"]);
+  assert.strictEqual(sin.mejores[0].grupos.length, 4);
+  // Una materia que no vas a ver no entra ni cuenta como "no cabe"
+  const q = L.armar(cursos, CFG({ quitadas: ["ética profesional"] }));
+  igual(q.quitadas, ["Ética Profesional"]);
+  igual(q.fuera, []);
+  assert(q.mejores[0].grupos.every(g => g.materia !== "Ética Profesional"));
+  assert.strictEqual(q.activas.length, 4);
+});
+
 prueba("enlace para compartir: ida y vuelta", () => {
   const estado = {
     filas: L.parsearCSV(L.EJEMPLO_CSV), pesos: { ...L.PESOS_INICIALES, hueco: 3 }, horaInicio: "07:00", horaFin: "17:30", top: 3,
     bloqueos: [{ nombre: "Trabajo, turno", dias: ["Lun", "Mar"], inicio: "06:00", fin: "12:00" }],
     evitar: ["Pérez"], fijos: { "cálculo iii": "B" },
+    llenos: { "redes de computadores": ["A", "C"] }, quitadas: ["Ética Profesional"],
   };
   const paquete = JSON.parse(JSON.stringify(L.empacarEstado(estado, 2)));   // como viaja en el enlace
   const { estado: vuelta, seleccion } = L.desempacarEstado(paquete);
